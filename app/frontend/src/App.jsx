@@ -176,7 +176,7 @@ function CalculatorTab({ selectedId, onSelectStation }) {
       </div>
 
       {/* Top section: inputs + result */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 0.7fr', gap: '16px', marginBottom: '16px' }}>
+      <div className="calculator-layout">
 
         {/* Input card */}
         <div className="card">
@@ -284,7 +284,7 @@ function CalculatorTab({ selectedId, onSelectStation }) {
           </div>
 
           {/* Export card */}
-          <div className="card" style={{ background: 'rgba(34,211,238,0.04)', borderColor: 'rgba(34,211,238,0.15)' }}>
+          <div className="card" style={{ background: '#F0FDFF', borderColor: 'rgba(6,182,212,0.25)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '13px', fontWeight: 600 }}>
                 <FileSpreadsheet size={15} color="var(--cyan)" />
@@ -498,8 +498,8 @@ function HydrographTab({ selectedId, onSelectStation }) {
           <svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
             <defs>
               <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.3" />
-                <stop offset="100%" stopColor="#22d3ee" stopOpacity="0.0" />
+                <stop offset="0%" stopColor="#06B6D4" stopOpacity="0.24" />
+                <stop offset="100%" stopColor="#06B6D4" stopOpacity="0.0" />
               </linearGradient>
               <linearGradient id="alertGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#ef4444" stopOpacity="0.15" />
@@ -512,7 +512,7 @@ function HydrographTab({ selectedId, onSelectStation }) {
               <line key={r}
                 x1={PL} y1={PT + cH * (1 - r)}
                 x2={PL + cW} y2={PT + cH * (1 - r)}
-                stroke="rgba(255,255,255,0.05)" strokeWidth="1"
+                stroke="#E2EAF4" strokeWidth="1"
               />
             ))}
 
@@ -528,7 +528,7 @@ function HydrographTab({ selectedId, onSelectStation }) {
             <polygon points={areaPts} fill="url(#areaGrad)" />
 
             {/* Line */}
-            <polyline points={linePts} fill="none" stroke="var(--cyan)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            <polyline points={linePts} fill="none" stroke="var(--blue)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
 
             {/* Threshold */}
             <line x1={PL} y1={threshY} x2={PL + cW} y2={threshY}
@@ -538,7 +538,7 @@ function HydrographTab({ selectedId, onSelectStation }) {
             {data.map((d, i) => (
               <circle key={i} cx={toX(i)} cy={toY(d.q)}
                 r={d.peak ? 5 : 3}
-                fill={d.peak ? 'var(--red)' : 'var(--cyan)'}
+                fill={d.peak ? 'var(--red)' : 'var(--blue)'}
                 stroke="var(--bg-base)" strokeWidth="1.5"
               />
             ))}

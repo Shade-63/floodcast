@@ -110,17 +110,17 @@ export default function GlobeView({ stations, selectedId, onSelectStation, onNav
         color: isSurge
           ? [0.94, 0.27, 0.27]
           : isSelected
-          ? [0.14, 0.83, 0.93]
-          : [0.25, 0.55, 0.95],
+          ? [0.02, 0.55, 0.85]
+          : [0.14, 0.46, 0.88],
         id: s.id,
       };
     });
 
     const arcs = [
-      { from: [38.6253, -90.1794], to: [38.9497, -77.1275], color: [0.22, 0.72, 0.94] },
-      { from: [38.6253, -90.1794], to: [30.2458, -97.6994], color: [0.22, 0.72, 0.94] },
-      { from: [38.9497, -77.1275], to: [35.6511, -78.4717], color: [0.22, 0.72, 0.94] },
-      { from: [38.4558, -121.5011], to: [30.2458, -97.6994], color: [0.45, 0.55, 0.85] },
+      { from: [38.6253, -90.1794], to: [38.9497, -77.1275], color: [0.02, 0.62, 0.82] },
+      { from: [38.6253, -90.1794], to: [30.2458, -97.6994], color: [0.02, 0.62, 0.82] },
+      { from: [38.9497, -77.1275], to: [35.6511, -78.4717], color: [0.02, 0.62, 0.82] },
+      { from: [38.4558, -121.5011], to: [30.2458, -97.6994], color: [0.14, 0.46, 0.88] },
     ];
 
     let globe = null;
@@ -134,18 +134,18 @@ export default function GlobeView({ stations, selectedId, onSelectStation, onNav
         phi: phiRef.current,
         theta: thetaRef.current,
         scale: scaleRef.current,
-        dark: 1,
-        diffuse: 1.4,
+        dark: 0,
+        diffuse: 1.15,
         mapSamples: 16000,
-        mapBrightness: 6,
-        baseColor: [0.08, 0.14, 0.24],
-        markerColor: [0.14, 0.83, 0.93],
-        glowColor: [0.12, 0.32, 0.58],
+        mapBrightness: 3.5,
+        baseColor: [0.78, 0.88, 0.97],
+        markerColor: [0.02, 0.55, 0.85],
+        glowColor: [0.62, 0.79, 0.96],
         markers,
         arcs,
-        arcColor: [0.2, 0.6, 0.9],
-        arcWidth: 0.5,
-        arcHeight: 0.25,
+        arcColor: [0.02, 0.58, 0.82],
+        arcWidth: 0.35,
+        arcHeight: 0.18,
       });
 
       const animate = () => {
@@ -402,14 +402,14 @@ export default function GlobeView({ stations, selectedId, onSelectStation, onNav
                   style={{
                     padding: '12px 14px',
                     borderRadius: 'var(--radius-md)',
-                    background: isSelected ? 'rgba(34,211,238,0.08)' : 'var(--bg-surface)',
-                    border: `1px solid ${isSelected ? 'var(--cyan)' : 'var(--border)'}`,
+                    background: isSelected ? '#EFF6FF' : 'var(--bg-surface)',
+                    border: `1px solid ${isSelected ? 'var(--blue)' : 'var(--border)'}`,
                     cursor: 'pointer',
                     transition: 'all 0.15s',
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <span className="text-mono" style={{ fontSize: '11px', fontWeight: 600, color: isSelected ? 'var(--cyan)' : 'var(--text-1)' }}>
+                    <span className="text-mono" style={{ fontSize: '11px', fontWeight: 600, color: isSelected ? 'var(--blue)' : 'var(--text-1)' }}>
                       {s.id}
                     </span>
                     <span className={`badge ${isHigh ? 'badge-yellow' : 'badge-green'}`} style={{ fontSize: '9px', padding: '2px 6px' }}>
@@ -443,17 +443,17 @@ export default function GlobeView({ stations, selectedId, onSelectStation, onNav
               left: 18,
               zIndex: 10,
               pointerEvents: 'none',
-              background: 'rgba(15, 22, 41, 0.85)',
+              background: 'rgba(255, 255, 255, 0.92)',
               backdropFilter: 'blur(8px)',
               padding: '8px 12px',
               borderRadius: 'var(--radius-sm)',
               border: '1px solid var(--border)',
             }}
           >
-            <div style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            <div style={{ fontSize: '10px', color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               Interactive 3D Sphere
             </div>
-            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--cyan)', marginTop: '2px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--blue)', marginTop: '2px' }}>
               Click station to focus • Scroll or buttons to zoom
             </div>
           </div>
@@ -468,7 +468,7 @@ export default function GlobeView({ stations, selectedId, onSelectStation, onNav
               display: 'flex',
               flexDirection: 'column',
               gap: '6px',
-              background: 'rgba(15, 22, 41, 0.85)',
+              background: 'rgba(255, 255, 255, 0.94)',
               backdropFilter: 'blur(8px)',
               padding: '6px',
               borderRadius: 'var(--radius-md)',
@@ -499,7 +499,7 @@ export default function GlobeView({ stations, selectedId, onSelectStation, onNav
             >
               <Maximize2 size={13} />
             </button>
-            <div style={{ fontSize: '9px', textAlign: 'center', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', paddingTop: 2 }}>
+            <div style={{ fontSize: '9px', textAlign: 'center', color: 'var(--text-2)', fontFamily: 'var(--font-mono)', paddingTop: 2 }}>
               {Math.round(scale * 100)}%
             </div>
           </div>
@@ -514,9 +514,9 @@ export default function GlobeView({ stations, selectedId, onSelectStation, onNav
                 transform: 'translate(-50%, -100%)',
                 zIndex: 25,
                 pointerEvents: 'none',
-                background: 'rgba(10, 15, 28, 0.95)',
-                border: '1px solid var(--cyan)',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.6), 0 0 10px rgba(34,211,238,0.3)',
+                background: 'rgba(255, 255, 255, 0.97)',
+                border: '1px solid var(--blue)',
+                boxShadow: '0 4px 16px rgba(23,43,77,0.14), 0 0 8px rgba(37,99,235,0.12)',
                 padding: '6px 12px',
                 borderRadius: 'var(--radius-sm)',
                 whiteSpace: 'nowrap',
@@ -572,8 +572,8 @@ export default function GlobeView({ stations, selectedId, onSelectStation, onNav
               justifyContent: 'space-between',
               alignItems: 'center',
               fontSize: '11px',
-              color: 'var(--text-3)',
-              background: 'rgba(15, 22, 41, 0.8)',
+              color: 'var(--text-2)',
+              background: 'rgba(255, 255, 255, 0.92)',
               backdropFilter: 'blur(6px)',
               padding: '8px 14px',
               borderRadius: 'var(--radius-sm)',
@@ -596,8 +596,8 @@ export default function GlobeView({ stations, selectedId, onSelectStation, onNav
           </div>
 
           <div style={{ padding: '14px', background: 'var(--bg-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', marginBottom: '14px' }}>
-            <div style={{ fontSize: '10.5px', color: 'var(--text-3)', textTransform: 'uppercase' }}>Selected Basin</div>
-            <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--cyan)', marginTop: '3px' }}>
+            <div style={{ fontSize: '10.5px', color: 'var(--text-2)', textTransform: 'uppercase' }}>Selected Basin</div>
+            <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--blue)', marginTop: '3px' }}>
               {activeStation.river}
             </div>
             <div style={{ fontSize: '12px', color: 'var(--text-2)', marginTop: '2px' }}>
