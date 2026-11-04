@@ -1,0 +1,20 @@
+services:
+  # React Dashboard (with Interactive 3D WebGL Globe & Hydrological Calculator)
+  - type: web
+    name: floodcast-dashboard
+    runtime: static
+    rootDir: app/frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  # Optional: Streamlit Python App
+  - type: web
+    name: floodcast-streamlit
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run app/streamlit_app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
