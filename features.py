@@ -106,6 +106,64 @@ def add_temperature_features(d):
     return d
 
 
+def add_physical_snow_and_effective_water(d, k_melt=2.5):
+    """Physical snowpack accumulation & degree-day melt tracking:
+    P_snow = precip if Tmax <= 0 else 0
+    P_rain = precip if Tmax > 0 else 0
+    Melt_t = min(Snowpack_{t-1}, K_melt * max(0, Tmax))
+    Snowpack_t = Snowpack_{t-1} + P_snow - Melt_t
+    Effective_Water = P_rain + Melt_t
+    """
+    def calc_snow_melt(group):
+        precip = group["precipitation_mm"].to_numpy(float)
+        tmax = group["temp_max_c"].to_numpy(float)
+        n = len(precip)
+        p_snow = np.where(tmax <= 0.0, precip, 0.0)
+        p_rain = np.where(tmax > 0.0, precip, 0.0)
+        melt = np.zeros(n, dtype=float)
+        snowpack = np.zeros(n, dtype=float)
+        eff_water = np.zeros(n, dtype=float)
+        s = 0.0
+        for t in range(n):
+            m = min(s, k_melt * max(0.0, tmax[t]))
+            melt[t] = m
+            s = s + p_snow[t] - m
+            snowpack[t] = s
+            eff_water[t] = p_rain[t] + m
+        return pd.DataFrame({
+            "snowpack_mm": snowpack,
+            "snow_melt_mm": melt,
+            "effective_water_mm": eff_water
+        }, index=group.index)
+
+    snow_df = d.groupby(STATION_COL, group_keys=False).apply(calc_snow_melt)
+    d["snowpack_mm"] = snow_df["snowpack_mm"]
+    d["snow_melt_mm"] = snow_df["snow_melt_mm"]
+    d["effective_water_mm"] = snow_df["effective_water_mm"]
+
+    # A. Soil-Saturation Runoff Potential
+    d["runoff_potential"] = d["effective_water_mm"] * d["soil_moisture"]
+
+    # B. Catchment-Scaled Dynamic API
+    def calc_dynamic_api(group):
+        eff = group["effective_water_mm"].to_numpy(float)
+        slope = group["slope_pct"].iloc[0]
+        gamma = 0.85 - (0.3 * (slope / 100.0))
+        n = len(eff)
+        api = np.zeros(n, dtype=float)
+        prev = 0.0
+        for t in range(n):
+            prev = eff[t] + gamma * prev
+            api[t] = prev
+        return pd.Series(api, index=group.index)
+
+    d["api_decay"] = d.groupby(STATION_COL, group_keys=False).apply(calc_dynamic_api)
+
+    # C. Drainage-Normalized Runoff Volume
+    d["runoff_volume_cfs_est"] = (d["effective_water_mm"] * d["drainage_area_sqmi"]) / 100.0
+    return d
+
+
 def add_seasonality(d):
     doy = d["_dt"].dt.dayofyear
     d["doy_sin"] = np.sin(2 * np.pi * doy / 365.25)
@@ -131,7 +189,8 @@ def build_features(df):
         raise ValueError(f"build_features: missing columns {missing}")
     d = _sorted(df)
     for fn in (add_rolling_rain, add_antecedent_precip_index, add_days_since_rain,
-               add_soil_features, add_temperature_features, add_seasonality,
+               add_soil_features, add_temperature_features,
+               add_physical_snow_and_effective_water, add_seasonality,
                add_catchment_interactions):
         d = fn(d)
     base = WEATHER_COLS + STATIC_COLS

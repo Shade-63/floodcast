@@ -40,13 +40,32 @@ const STATIONS = [
   },
 ];
 
-/* ─── Helpers ────────────────────────────────────────────────────── */
-function computeDischarge(precip, soil, area, slope, forest) {
+/* ─── Hydrological Physical Model ────────────────────────────────── */
+function computeDischarge(precip, soil, area, slope, forest, tmax = 26.5, snowpackPrev = 0, kMelt = 2.5) {
+  // 1. Daily Precipitation Partitioning
+  const pSnow = tmax <= 0.0 ? precip : 0.0;
+  const pRain = tmax > 0.0 ? precip : 0.0;
+
+  // 2. Snowpack Accumulation & Melt Tracking
+  const melt = Math.min(snowpackPrev, kMelt * Math.max(0.0, tmax));
+  const effectiveWater = pRain + melt;
+
+  // 3. Supporting Unique Features
+  // A. Soil-Saturation Runoff Potential
+  const runoffPotential = effectiveWater * soil;
+
+  // B. Catchment-Scaled Dynamic API
+  const gamma = 0.85 - (0.3 * (slope / 100.0));
+
+  // C. Drainage-Normalized Runoff Volume
+  const runoffVolume = (effectiveWater * area) / 100.0;
+
+  // Baseflow scaling
   const base = Math.max(50, area * 0.22);
-  const sat = Math.min(2.5, Math.max(0.2, soil / 0.3));
-  const slp = Math.max(0.5, slope / 3.5);
-  const veg = Math.max(0.65, 1 - forest / 250);
-  return Math.max(5, Math.round((base + precip * sat * slp * veg * (area / 100) * 0.16) * 100) / 100);
+  const vegBuffering = Math.max(0.65, 1 - forest / 250);
+  const discharge = base + (runoffVolume * soil * vegBuffering * (1 + gamma * 0.5) * 0.16);
+
+  return Math.max(5, Math.round(discharge * 100) / 100);
 }
 
 function fmt(n) { return n.toLocaleString(undefined, { maximumFractionDigits: 0 }); }
@@ -101,7 +120,7 @@ function CalculatorTab({ selectedId, onSelectStation }) {
 
   const meta = STATIONS.find(s => s.id === preset);
 
-  const q = useMemo(() => computeDischarge(precip, soil, area, slope, forest), [precip, soil, area, slope, forest]);
+  const q = useMemo(() => computeDischarge(precip, soil, area, slope, forest, tmax), [precip, soil, area, slope, forest, tmax]);
   const isFlood = meta ? q >= meta.threshold90 : q > 10000;
 
   const handlePreset = (id) => {
@@ -129,7 +148,7 @@ function CalculatorTab({ selectedId, onSelectStation }) {
       const d = new Date(base);
       d.setDate(base.getDate() + i);
       const s = Math.min(0.92, soil + r * 0.004);
-      const dq = computeDischarge(r, s, area, slope, forest);
+      const dq = computeDischarge(r, s, area, slope, forest, tmax);
       rows.push({
         station_id: String(preset).padStart(8, '0'),
         date: d.toISOString().split('T')[0],
