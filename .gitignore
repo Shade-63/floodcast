@@ -2,6 +2,10 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .venv/
+venv/
+artifacts/
+BASINSHIFT_APP_BUNDLE.zip
+*.zip
 data/raw/*
 data/external/*
 data/processed/*
@@ -12,4 +16,5 @@ node_modules/
 app/frontend/node_modules/
 dist/
 app/frontend/dist/
+.pytest_cache/
 .DS_Store
