@@ -9,7 +9,7 @@ Add one idea at a time; record both CV schemes. Fill from real runs only.
 | + temperature proxies | 7336.38 | 20682.01 | 74830.38 | 138578.16 | Mean/range temp, degree-day sums, seasonality sin/cos |
 | + catchment interactions | 8331.61 | 24097.99 | 73111.47 | 135734.57 | Log area, rain*logarea, rain/area, slope*rain |
 | + extra stations | TODO | TODO | TODO | TODO | (Phase 4) |
-| + target modes (log1p/specific) | TODO | TODO | TODO | TODO | (Phase 5) |
+| + target modes (log1p) | 5260.39 | 12998.76 | 74891.28 | 143843.37 | log1p(y) fit; -36.9% Fwd RMSE, -46.1% peak error |
 | + peak model / blend | TODO | TODO | TODO | TODO | (Phase 6) |
 | + ensemble (LGBM+XGB+Cat) | TODO | TODO | TODO | TODO | (Phase 7) |
 
