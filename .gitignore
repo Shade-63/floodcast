@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+data/raw/*
+data/external/*
+data/processed/*
+!data/**/.gitkeep
+outputs/*
+!outputs/.gitkeep
+node_modules/
+app/frontend/node_modules/
+dist/
+app/frontend/dist/
+.DS_Store

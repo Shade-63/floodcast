@@ -1,0 +1,14 @@
+# Versions intentionally NOT pinned here. Before submitting, run `pip freeze`
+# in the environment that produced predictions.csv and pin what you actually used.
+pandas
+numpy
+scikit-learn
+lightgbm
+requests
+# Used by the ensemble in models.py (imported lazily, only if you call them):
+xgboost
+catboost
+# Used by explain.py / app (optional, stretch):
+shap
+matplotlib
+streamlit
