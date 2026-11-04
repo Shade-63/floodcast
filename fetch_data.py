@@ -40,17 +40,47 @@ STREAMSTATS_RENAME = {   # brief key columns -> starter names (CHECK UNITS vs st
 
 
 def fetch_usgs_daily_discharge(site_no, start_date, end_date):
-    """Request daily discharge JSON for one site. Returns raw payload (dict).
-
-    TODO(P1): parse payload into DataFrame[station_id, date, discharge_cfs].
-    Inspect a real response first (the brief lists 00060_Mean as the key column
-    and quality_cd for quality flags). Keep station_id as a STRING.
-    """
+    """Request daily discharge JSON for one site. Returns raw payload (dict)."""
     params = {"format": "json", "sites": site_no, "startDT": start_date,
               "endDT": end_date, "parameterCd": USGS_DISCHARGE_PARAM}
     r = requests.get(USGS_DV_URL, params=params, timeout=60)
     r.raise_for_status()
     return r.json()
+
+
+def parse_usgs_discharge(payload, drop_ice=True, approved_only=False):
+    """Parse USGS NWIS DV JSON payload into DataFrame[station_id, date, discharge_cfs].
+    
+    Preserves station_id as string with leading zeros.
+    Filters missing values (-999999), and drops ice-affected / estimated values ('e').
+    """
+    rows = []
+    time_series = payload.get("value", {}).get("timeSeries", [])
+    for ts in time_series:
+        site_no = str(ts["sourceInfo"]["siteCode"][0]["value"])
+        val_entries = ts.get("values", [{}])[0].get("value", [])
+        for entry in val_entries:
+            raw_val = entry.get("value")
+            if raw_val is None or raw_val == "-999999":
+                continue
+            val = float(raw_val)
+            if val < 0:
+                continue
+
+            qualifiers = entry.get("qualifiers", [])
+            # Drop ice-affected or estimated values
+            if drop_ice and any(q.lower() in ("e", "ice") for q in qualifiers):
+                continue
+            if approved_only and "A" not in qualifiers:
+                continue
+
+            dt_str = entry["dateTime"][:10]
+            rows.append({
+                "station_id": site_no,
+                "date": dt_str,
+                "discharge_cfs": val,
+            })
+    return pd.DataFrame(rows, columns=["station_id", "date", "discharge_cfs"])
 
 
 def fetch_open_meteo_daily(lat, lon, start_date, end_date, timezone):
