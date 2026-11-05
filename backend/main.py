@@ -28,6 +28,12 @@ async def lifespan(app: FastAPI):
     global repo, engine
     print(f"Initializing FLOODCAST BASINSHIFT Backend with artifacts from: {config.ARTIFACTS_DIR}")
     try:
+        try:
+            from scripts.download_artifacts import main as download_artifacts
+            download_artifacts()
+        except Exception as dl_err:
+            print(f"Artifact verification check: {dl_err}")
+
         repo = CatchmentRepository()
         engine = ModelEngine(repo)
         print("Backend model and datasets successfully initialized.")
