@@ -1,0 +1,7 @@
+horizon,model,eval_type,catchments,origins,MAE,RMSE,NSE
++1 day,MultiTask_LSTM,pooled_all_origins,115,725921,0.10173751,0.5495258,0.7722313
++1 day,Persistence,pooled_all_origins,115,725921,0.11807224,0.639517,0.6915235
++3 day,MultiTask_LSTM,pooled_all_origins,115,725921,0.17974083,0.7243301,0.6065102
++3 day,Persistence,pooled_all_origins,115,725921,0.2196813,0.8759342,0.42455566
++7 day,MultiTask_LSTM,pooled_all_origins,115,725921,0.2510838,0.8436884,0.47147983
++7 day,Persistence,pooled_all_origins,115,725921,0.30861178,1.0374156,0.2008968

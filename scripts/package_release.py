@@ -1,14 +1,25 @@
+#!/usr/bin/env python3
+"""
+FLOODCAST — Standalone Release Packaging and Integrity Verification Script
+Bundles clean source code, frontend, documentation, reports, tests, and submission files
+while strictly excluding virtual environments, .git, caches, and node_modules.
+Verifies ZIP integrity with CRC-32 and records the SHA-256 checksum.
+"""
+
 import os
+import hashlib
 import zipfile
 from pathlib import Path
 
-root_dir = Path(".").resolve()
-zip_filename = root_dir / "FLOODCAST_BASINSHIFT_INTEGRATED.zip"
+root_dir = Path(__file__).resolve().parent.parent
+zip_filename = root_dir / "FLOODCAST_TECHNICAL_SUBMISSION.zip"
 
 include_prefixes = [
     "backend",
     "app/frontend",
     "docs",
+    "reports",
+    "scripts",
     "tests",
 ]
 
@@ -17,6 +28,9 @@ include_files = [
     "requirements.txt",
     ".env.example",
     ".gitignore",
+    "predictions.csv",
+    "predictions_provenance.json",
+    "model_card.md",
 ]
 
 exclude_parts = [
@@ -28,8 +42,10 @@ exclude_parts = [
     ".pytest_cache",
     "dist",
     "artifacts",
+    "BASINSHIFT_APP_BUNDLE",
     "BASINSHIFT_APP_BUNDLE.zip",
     "FLOODCAST_BASINSHIFT_INTEGRATED.zip",
+    "FLOODCAST_TECHNICAL_SUBMISSION.zip",
 ]
 
 print(f"Creating standalone archive: {zip_filename.name}...")
@@ -77,7 +93,16 @@ with zipfile.ZipFile(zip_filename, "w", zipfile.ZIP_DEFLATED) as zf:
 
 # Verification
 print(f"\n--- ZIP INTEGRITY VERIFICATION ---")
-print(f"File size: {os.path.getsize(zip_filename):,d} bytes ({os.path.getsize(zip_filename)/1024:.2f} KB)")
+file_size = os.path.getsize(zip_filename)
+print(f"File size: {file_size:,} bytes ({file_size/1024:.2f} KB)")
+
+# SHA-256 calculation
+sha256 = hashlib.sha256()
+with open(zip_filename, "rb") as f:
+    while chunk := f.read(1024 * 1024):
+        sha256.update(chunk)
+zip_hash = sha256.hexdigest()
+print(f"SHA-256 Checksum: {zip_hash}")
 
 with zipfile.ZipFile(zip_filename, "r") as zf:
     test_res = zf.testzip()
@@ -92,4 +117,3 @@ for name in namelist[:25]:
     print("  ", name)
 if len(namelist) > 25:
     print(f"   ... and {len(namelist)-25} more files.")
-

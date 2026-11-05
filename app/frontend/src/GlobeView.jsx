@@ -1,185 +1,214 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import createGlobe from 'cobe';
 import {
-  MapPin, Play, Pause, RotateCcw, AlertTriangle, ShieldCheck,
-  Compass, ChevronRight, ZoomIn, ZoomOut, Maximize2, Layers
+  MapPin, Play, Pause, RotateCcw, Compass, ZoomIn, ZoomOut, Maximize2
 } from 'lucide-react';
+import { gsap } from './animations';
 
 const PI = Math.PI;
 
-// Project [lat, lon] to 2D canvas screen coordinates matching cobe's WebGL projection
-function projectToScreen([lat, lon], phi, theta, scale = 1, width = 560, height = 560) {
+function projectToScreen([lat, lon], phi, theta, scale = 1, width, height) {
   const r = (lat * PI) / 180;
   const a = (lon * PI) / 180 - PI;
   const o = Math.cos(r);
   const t = [-o * Math.cos(a), Math.sin(r), o * Math.sin(a)];
-
   const cosL = Math.cos(theta), cosF = Math.cos(phi);
   const sinL = Math.sin(theta), sinF = Math.sin(phi);
-
   const c = cosF * t[0] + sinF * t[2];
   const s = sinF * sinL * t[0] + cosL * t[1] - cosF * sinL * t[2];
   const z = -sinF * cosL * t[0] + sinL * t[1] + cosF * cosL * t[2];
-
-  const visible = z >= 0;
-  const x = width * ((c * scale + 1) / 2);
-  const y = height * ((-s * scale + 1) / 2);
-
-  return { x, y, visible, z };
+  return { x: width * ((c * scale + 1) / 2), y: height * ((-s * scale + 1) / 2), visible: z >= 0, z };
 }
 
-// Convert 2D canvas click back to 3D spherical [lat, lon]
-function unproject(clickX, clickY, phi, theta, scale = 1, width = 560, height = 560) {
+function unproject(clickX, clickY, phi, theta, scale = 1, width, height) {
   const c = ((2 * clickX) / width - 1) / scale;
   const s = -((2 * clickY) / height - 1) / scale;
   const r2 = c * c + s * s;
-  // Normalized sphere radius in cobe is 0.8
   if (r2 > 0.64) return null;
   const z = Math.sqrt(0.64 - r2);
-
   const v = [c / 0.8, s / 0.8, z / 0.8];
   const cosL = Math.cos(theta), cosF = Math.cos(phi);
   const sinL = Math.sin(theta), sinF = Math.sin(phi);
-
   const t0 = cosF * v[0] + sinF * sinL * v[1] - sinF * cosL * v[2];
   const t1 = cosL * v[1] + sinL * v[2];
   const t2 = sinF * v[0] - cosF * sinL * v[1] + cosF * cosL * v[2];
-
-  const lat = (Math.asin(Math.max(-1, Math.min(1, t1))) * 180) / PI;
-  const lon = (Math.atan2(-t2, t0) * 180) / PI;
-  return { lat, lon };
+  return {
+    lat: (Math.asin(Math.max(-1, Math.min(1, t1))) * 180) / PI,
+    lon: (Math.atan2(-t2, t0) * 180) / PI,
+  };
 }
 
-export default function GlobeView({
-  catchments = [],
-  selectedId,
-  onSelectCatchment,
-  onSwitchTo2D
-}) {
+export default function GlobeView({ catchments, selectedId, onSelectCatchment, onSwitchTo2D }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const globeRef = useRef(null);
+  // GSAP animation targets
+  const infoPanelRef = useRef(null);
+  const controlsRowRef = useRef(null);
+  const statChipsRef = useRef(null);
 
   const pointerInteracting = useRef(null);
+  const pointerInteractionMovement = useRef(0);
   const pointerStartPos = useRef({ x: 0, y: 0, time: 0 });
 
-  // Initial center on Brazil (Lat ~ -15, Lon ~ -48)
-  const phiRef = useRef(5.45);
-  const thetaRef = useRef(-0.25);
-  const scaleRef = useRef(1.15);
+  // Brazil-centered: lon ≈ -53° → phi = 53°×π/180 + 3π/2 ≈ 5.64
+  const phiRef = useRef(5.64);
+  const thetaRef = useRef(-0.26);
+  const scaleRef = useRef(1.0);
   const targetPhiRef = useRef(null);
   const targetThetaRef = useRef(null);
   const targetScaleRef = useRef(null);
 
-  const [isAutoRotate, setIsAutoRotate] = useState(true);
-  const isAutoRotateRef = useRef(true);
-  const [scale, setScale] = useState(1.15);
+  const [isAutoRotate, setIsAutoRotate] = useState(false);
+  const isAutoRotateRef = useRef(false);
+  const [scale, setScale] = useState(1.0);
   const [hoveredCatchment, setHoveredCatchment] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  // Actual rendered canvas size (CSS pixels)
+  const [canvasSize, setCanvasSize] = useState(480);
 
   useEffect(() => {
     isAutoRotateRef.current = isAutoRotate;
   }, [isAutoRotate]);
 
   const activeCatchment = useMemo(() => {
-    return catchments.find((c) => c.gauge_id === selectedId) || catchments[0];
+    if (!catchments || catchments.length === 0) return null;
+    return catchments.find(c => c.gauge_id === selectedId) || catchments[0];
   }, [catchments, selectedId]);
 
-  // Build markers list with colors and sizes
-  const buildMarkers = useMemo(() => {
-    return catchments.map((c) => {
-      const isSelected = c.gauge_id === selectedId;
-      const isHovered = hoveredCatchment && hoveredCatchment.gauge_id === c.gauge_id;
-      return {
-        location: [c.lat, c.lon],
-        size: isSelected ? 0.085 : isHovered ? 0.065 : 0.038,
-        color: isSelected
-          ? [0.05, 0.75, 0.95] // bright cyan for selected
-          : isHovered
-          ? [0.96, 0.62, 0.07] // amber hover
-          : c.split === 'test'
-          ? [0.10, 0.65, 0.45] // emerald for test
-          : [0.15, 0.39, 0.92], // blue for others
-      };
+  // Track container width to size canvas responsively
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(entries => {
+      const w = entries[0].contentRect.width;
+      setCanvasSize(Math.min(Math.floor(w), 560));
     });
-  }, [catchments, selectedId, hoveredCatchment]);
+    ro.observe(el);
+    setCanvasSize(Math.min(Math.floor(el.getBoundingClientRect().width), 560));
+    return () => ro.disconnect();
+  }, []);
+
+  // ── GSAP: Globe container + controls entry animation on mount ─────
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      // Controls row slides down
+      if (controlsRowRef.current) {
+        gsap.fromTo(controlsRowRef.current,
+          { y: -16, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.45, ease: 'power3.out', delay: 0.1 }
+        );
+      }
+      // Globe viewport pops in
+      if (containerRef.current) {
+        gsap.fromTo(containerRef.current,
+          { scale: 0.96, opacity: 0 },
+          { scale: 1, opacity: 1, duration: 0.55, ease: 'power3.out', delay: 0.2 }
+        );
+      }
+      // Info panel slides in from right
+      if (infoPanelRef.current) {
+        gsap.fromTo(infoPanelRef.current,
+          { x: 24, opacity: 0 },
+          { x: 0, opacity: 1, duration: 0.5, ease: 'power3.out', delay: 0.35 }
+        );
+      }
+    });
+    return () => ctx.revert();
+  }, []);
+
+  // ── GSAP: Re-animate info panel stat chips when selected basin changes
+  useEffect(() => {
+    if (!infoPanelRef.current) return;
+    // Flash the gauge ID label
+    gsap.fromTo(
+      infoPanelRef.current.querySelector('.globe-gauge-id'),
+      { scale: 1.08, color: '#06B6D4' },
+      { scale: 1, color: '#2563EB', duration: 0.4, ease: 'power2.out' }
+    );
+    // Stagger the stat chips
+    const chips = infoPanelRef.current.querySelectorAll('.globe-stat-chip');
+    if (chips.length) {
+      gsap.fromTo(Array.from(chips),
+        { y: 10, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.32, ease: 'power2.out', stagger: 0.06, delay: 0.05 }
+      );
+    }
+  }, [selectedId]);
 
   // Center on active catchment when selectedId changes
   useEffect(() => {
     if (activeCatchment) {
       const targetPhi = (-activeCatchment.lon * PI) / 180 + (3 * PI) / 2;
       const targetTheta = (activeCatchment.lat * PI) / 180;
-
       let currentPhi = phiRef.current;
       const twoPi = PI * 2;
       let diff = (targetPhi - currentPhi) % twoPi;
       if (diff > PI) diff -= twoPi;
       if (diff < -PI) diff += twoPi;
-
       targetPhiRef.current = currentPhi + diff;
       targetThetaRef.current = Math.max(-1.1, Math.min(1.1, targetTheta));
     }
   }, [selectedId, activeCatchment]);
 
-  // Initialize and run Cobe WebGL Globe
+  // Globe init — re-create when canvasSize changes so pixel dimensions match
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !catchments || catchments.length === 0 || canvasSize < 100) return;
+
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const px = canvasSize * dpr;
+
+    const buildMarkers = () => catchments.map(c => {
+      const isSelected = c.gauge_id === selectedId;
+      const isTrain = c.split === 'train';
+      return {
+        location: [c.lat, c.lon],
+        size: isSelected ? 0.075 : 0.038,
+        color: isSelected
+          ? [0.06, 0.72, 0.95]
+          : isTrain ? [0.18, 0.50, 0.92] : [0.94, 0.62, 0.07],
+      };
+    });
 
     let animId = null;
-    const container = containerRef.current;
-    const baseW = container ? Math.min(container.clientWidth - 40, 560) : 520;
-    const size = Math.max(baseW, 400);
-
+    let globe;
     try {
-      const globe = createGlobe(canvas, {
-        devicePixelRatio: Math.min(2, window.devicePixelRatio || 1),
-        width: size * 2,
-        height: size * 2,
+      globe = createGlobe(canvas, {
+        devicePixelRatio: dpr,
+        width: px,
+        height: px,
         phi: phiRef.current,
         theta: thetaRef.current,
         scale: scaleRef.current,
         dark: 0,
-        diffuse: 1.15,
-        mapSamples: 16000,
-        mapBrightness: 3.5,
-        baseColor: [0.76, 0.86, 0.96], // Soft blue oceans
-        markerColor: [0.15, 0.39, 0.92],
-        glowColor: [0.65, 0.82, 0.98], // Light glowing atmosphere
-        markers: buildMarkers,
+        diffuse: 1.2,
+        mapSamples: 14000,
+        mapBrightness: 4,
+        baseColor: [0.72, 0.84, 0.96],
+        markerColor: [0.02, 0.55, 0.85],
+        glowColor: [0.58, 0.78, 0.97],
+        markers: buildMarkers(),
       });
-
       globeRef.current = globe;
 
       const animate = () => {
-        // Auto-rotation when not interacting
         if (isAutoRotateRef.current && pointerInteracting.current === null && targetPhiRef.current === null) {
-          phiRef.current += 0.0018;
+          phiRef.current += 0.003;
         }
-
-        // Smooth tween azimuth (phi)
         if (targetPhiRef.current !== null && pointerInteracting.current === null) {
-          const diff = targetPhiRef.current - phiRef.current;
-          phiRef.current += diff * 0.08;
-          if (Math.abs(diff) < 0.001) {
+          phiRef.current += (targetPhiRef.current - phiRef.current) * 0.08;
+          thetaRef.current += (targetThetaRef.current - thetaRef.current) * 0.08;
+          if (Math.abs(targetPhiRef.current - phiRef.current) < 0.001 &&
+              Math.abs(targetThetaRef.current - thetaRef.current) < 0.001) {
             targetPhiRef.current = null;
-          }
-        }
-
-        // Smooth tween elevation (theta)
-        if (targetThetaRef.current !== null && pointerInteracting.current === null) {
-          const diff = targetThetaRef.current - thetaRef.current;
-          thetaRef.current += diff * 0.08;
-          if (Math.abs(diff) < 0.001) {
             targetThetaRef.current = null;
           }
         }
-
-        // Smooth zoom scale
         if (targetScaleRef.current !== null) {
-          const sDiff = targetScaleRef.current - scaleRef.current;
-          scaleRef.current += sDiff * 0.1;
-          if (Math.abs(sDiff) < 0.005) {
+          const diff = targetScaleRef.current - scaleRef.current;
+          scaleRef.current += diff * 0.1;
+          if (Math.abs(diff) < 0.005) {
             scaleRef.current = targetScaleRef.current;
             targetScaleRef.current = null;
           }
@@ -190,513 +219,276 @@ export default function GlobeView({
           phi: phiRef.current,
           theta: thetaRef.current,
           scale: scaleRef.current,
+          markers: catchments.map(c => {
+            const isH = hoveredCatchment && hoveredCatchment.gauge_id === c.gauge_id;
+            const isSel = c.gauge_id === selectedId;
+            const isTrain = c.split === 'train';
+            return {
+              location: [c.lat, c.lon],
+              size: isSel ? 0.085 : isH ? 0.065 : 0.038,
+              color: isSel ? [0.06, 0.72, 0.95] : isH ? [0.96, 0.62, 0.07] : isTrain ? [0.18, 0.50, 0.92] : [0.94, 0.62, 0.07],
+            };
+          }),
         });
-
         animId = requestAnimationFrame(animate);
       };
-
-      animate();
-    } catch (e) {
-      console.error('Globe WebGL initialization error:', e);
+      animId = requestAnimationFrame(animate);
+    } catch (err) {
+      console.error('Globe init failed:', err);
     }
 
     return () => {
       if (animId) cancelAnimationFrame(animId);
-      if (globeRef.current) {
-        globeRef.current.destroy();
-        globeRef.current = null;
-      }
+      if (globe) globe.destroy();
+      globeRef.current = null;
     };
-  }, []); // Run on mount
+  }, [catchments, canvasSize]); // Note: selectedId / hoveredCatchment are read via refs in animate loop
 
-  // Update markers on selection or hover changes
+  // Wheel zoom
   useEffect(() => {
-    if (globeRef.current) {
-      globeRef.current.update({
-        markers: buildMarkers,
-      });
-    }
-  }, [buildMarkers]);
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = e => {
+      e.preventDefault();
+      const next = Math.max(0.6, Math.min(3.0, scaleRef.current * (e.deltaY < 0 ? 1.08 : 0.93)));
+      scaleRef.current = next;
+      setScale(Math.round(next * 100) / 100);
+      targetScaleRef.current = null;
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, []);
 
-  const handleZoom = (delta) => {
-    const next = Math.max(0.75, Math.min(1.85, scaleRef.current + delta));
-    targetScaleRef.current = next;
-  };
+  const handleZoomIn  = () => { targetScaleRef.current = Math.min(3.0, scaleRef.current + 0.25); };
+  const handleZoomOut = () => { targetScaleRef.current = Math.max(0.6, scaleRef.current - 0.25); };
+  const handleZoomReset = () => { targetScaleRef.current = 1.0; };
 
-  const handleReset = () => {
-    targetPhiRef.current = 5.45;
-    targetThetaRef.current = -0.25;
-    targetScaleRef.current = 1.15;
-    setIsAutoRotate(true);
-  };
-
-  const handlePointerDown = (e) => {
-    pointerInteracting.current = { x: e.clientX, y: e.clientY };
+  const handlePointerDown = e => {
+    pointerInteracting.current = e.clientX - pointerInteractionMovement.current;
     pointerStartPos.current = { x: e.clientX, y: e.clientY, time: Date.now() };
-    setIsAutoRotate(false);
     if (canvasRef.current) canvasRef.current.style.cursor = 'grabbing';
   };
 
-  const handlePointerMove = (e) => {
+  const handlePointerUp = e => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
-    // Active drag rotation
-    if (pointerInteracting.current !== null) {
-      const dx = e.clientX - pointerInteracting.current.x;
-      const dy = e.clientY - pointerInteracting.current.y;
-      phiRef.current += dx * 0.004;
-      thetaRef.current = Math.max(-1.1, Math.min(1.1, thetaRef.current - dy * 0.004));
-      pointerInteracting.current = { x: e.clientX, y: e.clientY };
-      targetPhiRef.current = null;
-      targetThetaRef.current = null;
-      setHoveredCatchment(null);
-      return;
-    }
-
-    // Hover detection over catchment markers
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-
-    let hovered = null;
-    let minD = 16;
-
-    for (const c of catchments) {
-      const proj = projectToScreen([c.lat, c.lon], phiRef.current, thetaRef.current, scaleRef.current, rect.width, rect.height);
-      if (proj.visible && proj.z > 0.1) {
-        const d = Math.hypot(mouseX - proj.x, mouseY - proj.y);
-        if (d < minD) {
-          minD = d;
-          hovered = c;
-          setTooltipPos({ x: proj.x, y: proj.y });
-        }
-      }
-    }
-
-    if (hovered) {
-      canvas.style.cursor = 'pointer';
-      setHoveredCatchment(hovered);
-    } else {
-      canvas.style.cursor = 'grab';
-      setHoveredCatchment(null);
-    }
-  };
-
-  const handlePointerUp = (e) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const start = pointerStartPos.current;
-    const dist = Math.hypot(e.clientX - start.x, e.clientY - start.y);
-    const duration = Date.now() - start.time;
-
+    const { x, y, time } = pointerStartPos.current;
+    const dist = Math.hypot(e.clientX - x, e.clientY - y);
     pointerInteracting.current = null;
     canvas.style.cursor = 'grab';
 
-    // Click selection (minimal movement and brief click)
-    if (dist < 8 && duration < 400) {
+    if (dist < 8 && Date.now() - time < 400) {
       const rect = canvas.getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-      const clickY = e.clientY - rect.top;
-
-      // 1. Direct hit check on projected catchment markers
-      let closest = null;
-      let minDist = 18;
+      const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+      let best = null, bestD = 32;
       for (const c of catchments) {
-        const proj = projectToScreen([c.lat, c.lon], phiRef.current, thetaRef.current, scaleRef.current, rect.width, rect.height);
-        if (proj.visible && proj.z > 0.1) {
-          const d = Math.hypot(clickX - proj.x, clickY - proj.y);
-          if (d < minDist) {
-            minDist = d;
-            closest = c;
-          }
+        const p = projectToScreen([c.lat, c.lon], phiRef.current, thetaRef.current, scaleRef.current, rect.width, rect.height);
+        if (p.visible && p.z > 0.05) {
+          const d = Math.hypot(cx - p.x, cy - p.y);
+          if (d < bestD) { bestD = d; best = c; }
         }
       }
+      if (best) { onSelectCatchment(best.gauge_id); return; }
 
-      // 2. Fallback to unprojecting spherical surface coordinates
-      if (!closest) {
-        const coords = unproject(clickX, clickY, phiRef.current, thetaRef.current, scaleRef.current, rect.width, rect.height);
-        if (coords) {
-          let minDeg = 4.0;
-          for (const c of catchments) {
-            const d = Math.hypot(c.lat - coords.lat, c.lon - coords.lon);
-            if (d < minDeg) {
-              minDeg = d;
-              closest = c;
-            }
-          }
+      const sp = unproject(cx, cy, phiRef.current, thetaRef.current, scaleRef.current, rect.width, rect.height);
+      if (sp) {
+        let near = null, nearD = 8;
+        for (const c of catchments) {
+          const d = Math.hypot(c.lat - sp.lat, c.lon - sp.lon);
+          if (d < nearD) { nearD = d; near = c; }
         }
-      }
-
-      if (closest) {
-        onSelectCatchment(closest.gauge_id);
+        if (near) onSelectCatchment(near.gauge_id);
       }
     }
   };
 
+  const handlePointerMove = e => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    if (pointerInteracting.current !== null) {
+      const delta = e.clientX - pointerInteracting.current;
+      pointerInteractionMovement.current = delta;
+      phiRef.current = delta * 0.006;
+      targetPhiRef.current = null;
+      setHoveredCatchment(null);
+      return;
+    }
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    let hov = null, minD = 22;
+    for (const c of catchments) {
+      const p = projectToScreen([c.lat, c.lon], phiRef.current, thetaRef.current, scaleRef.current, rect.width, rect.height);
+      if (p.visible && p.z > 0.1) {
+        const d = Math.hypot(mx - p.x, my - p.y);
+        if (d < minD) { minD = d; hov = c; setTooltipPos({ x: p.x, y: p.y }); }
+      }
+    }
+    canvas.style.cursor = hov ? 'pointer' : 'grab';
+    setHoveredCatchment(hov);
+  };
+
+  const handleResetView = () => {
+    targetPhiRef.current = 5.64;
+    targetThetaRef.current = -0.26;
+    targetScaleRef.current = 1.0;
+    setIsAutoRotate(false);
+  };
+
+  if (!catchments || catchments.length === 0) {
+    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400, color: 'var(--text-2)' }}>Loading…</div>;
+  }
+
+  const splitCounts = catchments.reduce((acc, c) => { acc[c.split] = (acc[c.split] || 0) + 1; return acc; }, {});
+  const splitColors = { train: '#2563EB', val: '#10B981', test: '#10B981' };
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '20px', minHeight: '600px' }}>
-      {/* 3D Globe Interactive Canvas */}
-      <div
-        ref={containerRef}
-        style={{
-          position: 'relative',
-          background: 'linear-gradient(145deg, #F8FAFC 0%, #EFF6FF 100%)',
-          borderRadius: 'var(--radius-lg)',
-          border: '1px solid var(--border)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          overflow: 'hidden',
-          padding: '20px',
-          boxShadow: 'inset 0 0 40px rgba(37,99,235,0.03)',
-        }}
-        onWheel={(e) => {
-          handleZoom(e.deltaY > 0 ? -0.1 : 0.1);
-        }}
-      >
-        {/* Floating Globe Controls Header */}
-        <div
-          style={{
-            position: 'absolute',
-            left: '20px',
-            top: '20px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-            zIndex: 10,
-          }}
-        >
-          <div style={{ display: 'flex', gap: '6px' }}>
-            <button
-              onClick={() => setIsAutoRotate(!isAutoRotate)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '6px 10px',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border)',
-                background: isAutoRotate ? '#EFF6FF' : 'var(--bg-card)',
-                color: isAutoRotate ? 'var(--blue)' : 'var(--text-1)',
-                fontSize: '11.5px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-              }}
-            >
-              {isAutoRotate ? <Pause size={13} /> : <Play size={13} />}
-              {isAutoRotate ? 'Pause' : 'Rotate'}
-            </button>
-            <button
-              onClick={handleReset}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '6px 10px',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border)',
-                background: 'var(--bg-card)',
-                color: 'var(--text-1)',
-                fontSize: '11.5px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-              }}
-            >
-              <RotateCcw size={13} />
-              Reset View
-            </button>
-          </div>
-
-          <div style={{ display: 'flex', gap: '6px' }}>
-            <button
-              onClick={() => handleZoom(0.2)}
-              style={{
-                padding: '6px 9px',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border)',
-                background: 'var(--bg-card)',
-                color: 'var(--text-1)',
-                cursor: 'pointer',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-              }}
-              title="Zoom In"
-            >
-              <ZoomIn size={14} />
-            </button>
-            <button
-              onClick={() => handleZoom(-0.2)}
-              style={{
-                padding: '6px 9px',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border)',
-                background: 'var(--bg-card)',
-                color: 'var(--text-1)',
-                cursor: 'pointer',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-              }}
-              title="Zoom Out"
-            >
-              <ZoomOut size={14} />
-            </button>
-            <button
-              onClick={() => {
-                targetScaleRef.current = 1.15;
-              }}
-              style={{
-                padding: '6px 9px',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border)',
-                background: 'var(--bg-card)',
-                color: 'var(--text-1)',
-                cursor: 'pointer',
-                fontSize: '11px',
-                fontWeight: 700,
-                fontFamily: 'var(--font-mono)',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-              }}
-              title="Scale"
-            >
-              {Math.round(scale * 100)}%
-            </button>
-            {onSwitchTo2D && (
-              <button
-                onClick={onSwitchTo2D}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  padding: '6px 10px',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border)',
-                  background: 'var(--bg-elevated)',
-                  color: 'var(--blue)',
-                  fontSize: '11.5px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                }}
-              >
-                <Layers size={13} />
-                2D Map
-              </button>
-            )}
-          </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {/* Controls row */}
+      <div ref={controlsRowRef} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button className={`btn ${isAutoRotate ? 'btn-cyan' : 'btn-ghost'} btn-sm`} onClick={() => setIsAutoRotate(v => !v)}>
+            {isAutoRotate ? <Pause size={13} /> : <Play size={13} />}
+            {isAutoRotate ? 'Pause' : 'Auto Rotate'}
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={handleResetView}>
+            <RotateCcw size={13} /> Reset View
+          </button>
+          {onSwitchTo2D && (
+            <button className="btn btn-ghost btn-sm" onClick={onSwitchTo2D}>Switch to 2D Map</button>
+          )}
         </div>
-
-        {/* Hover Tooltip Overlay */}
-        {hoveredCatchment && (
-          <div
-            style={{
-              position: 'absolute',
-              left: `${tooltipPos.x}px`,
-              top: `${tooltipPos.y - 12}px`,
-              transform: 'translate(-50%, -100%)',
-              zIndex: 25,
-              pointerEvents: 'none',
-              background: 'rgba(15, 23, 42, 0.95)',
-              color: '#FFFFFF',
-              border: '1px solid rgba(56, 189, 248, 0.5)',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.2)',
-              padding: '6px 10px',
-              borderRadius: 'var(--radius-sm)',
-              whiteSpace: 'nowrap',
-              fontSize: '11px',
-              backdropFilter: 'blur(4px)',
-            }}
-          >
-            <div style={{ color: '#38BDF8', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-              Gauge {hoveredCatchment.gauge_id}
-            </div>
-            <div style={{ color: '#E2E8F0', fontSize: '10px', marginTop: '2px' }}>
-              Split: <strong style={{ textTransform: 'uppercase' }}>{hoveredCatchment.split}</strong> • Area: {hoveredCatchment.area?.toLocaleString()} km²
-            </div>
-            <div style={{ color: '#94A3B8', fontSize: '9.5px', marginTop: '2px' }}>
-              Click to select catchment
-            </div>
-          </div>
-        )}
-
-        {/* Globe canvas */}
-        <div
-          style={{
-            width: '520px',
-            height: '520px',
-            maxWidth: '100%',
-            aspectRatio: '1',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'grab',
-          }}
-          onPointerDown={handlePointerDown}
-          onPointerUp={handlePointerUp}
-          onPointerMove={handlePointerMove}
-        >
-          <canvas
-            ref={canvasRef}
-            style={{
-              width: '100%',
-              height: '100%',
-              maxWidth: '520px',
-              aspectRatio: '1',
-              outline: 'none',
-            }}
-          />
-        </div>
-
-        {/* Bottom Legend */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: '16px',
-            left: '20px',
-            right: '20px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            fontSize: '11px',
-            color: 'var(--text-2)',
-            background: 'rgba(255, 255, 255, 0.90)',
-            backdropFilter: 'blur(6px)',
-            padding: '6px 12px',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--border)',
-            pointerEvents: 'none',
-          }}
-        >
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#05B8F3' }} /> Selected Basin
-            </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10A773' }} /> Test Gauges
-            </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#2563EB' }} /> Gauges ({catchments.length})
-            </span>
-          </div>
-          <div style={{ color: 'var(--text-3)' }}>
-            Drag to orbit • Scroll to zoom • Click marker to focus
-          </div>
+        {/* Legend */}
+        <div style={{ display: 'flex', gap: '14px', fontSize: '11px', color: 'var(--text-2)', alignItems: 'center' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#2563EB', display: 'inline-block' }} /> Train ({splitCounts.train || 0})
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#F59E0B', display: 'inline-block' }} /> Val/Test ({(splitCounts.val || 0) + (splitCounts.test || 0)})
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#06B6D4', display: 'inline-block' }} /> Selected
+          </span>
         </div>
       </div>
 
-      {/* Selected Catchment Inspector Panel */}
-      <div
-        style={{
-          background: 'var(--bg-surface)',
-          borderRadius: 'var(--radius-lg)',
-          border: '1px solid var(--border)',
-          padding: '20px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px',
-          overflowY: 'auto',
-        }}
-      >
-        <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Selected CAMELS-BR Basin
+      {/* Main layout: Globe | Info panel */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 230px', gap: '16px', alignItems: 'start' }}>
+
+        {/* Globe viewport */}
+        <div
+          ref={containerRef}
+          style={{
+            position: 'relative',
+            background: 'var(--bg-surface)',
+            borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--border)',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {/* Zoom buttons */}
+          <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 15, display: 'flex', flexDirection: 'column', gap: 4, background: 'rgba(255,255,255,0.93)', backdropFilter: 'blur(8px)', padding: 4, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+            <button className="btn btn-ghost btn-sm" style={{ width: 28, height: 28, padding: 0 }} onClick={handleZoomIn}><ZoomIn size={13} /></button>
+            <button className="btn btn-ghost btn-sm" style={{ width: 28, height: 28, padding: 0 }} onClick={handleZoomOut}><ZoomOut size={13} /></button>
+            <button className="btn btn-ghost btn-sm" style={{ width: 28, height: 28, padding: 0 }} onClick={handleZoomReset}><Maximize2 size={11} /></button>
+            <div style={{ fontSize: '9px', textAlign: 'center', color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{Math.round(scale * 100)}%</div>
           </div>
-          <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-1)', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
-            {activeCatchment ? activeCatchment.gauge_id : 'Select a basin'}
+
+          {/* Tooltip */}
+          {hoveredCatchment && (
+            <div style={{ position: 'absolute', left: tooltipPos.x, top: tooltipPos.y - 10, transform: 'translate(-50%, -100%)', zIndex: 25, pointerEvents: 'none', background: 'rgba(255,255,255,0.97)', border: '1px solid var(--blue)', boxShadow: '0 4px 14px rgba(23,43,77,0.13)', padding: '5px 11px', borderRadius: 'var(--radius-sm)', whiteSpace: 'nowrap' }}>
+              <div style={{ fontSize: '10px', color: 'var(--cyan)', fontWeight: 700 }}>{hoveredCatchment.gauge_id}</div>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-1)' }}>{hoveredCatchment.lat.toFixed(2)}°, {hoveredCatchment.lon.toFixed(2)}°</div>
+              <div style={{ fontSize: '10px', color: 'var(--text-3)' }}>Click to select</div>
+            </div>
+          )}
+
+          {/* Canvas — square, centered */}
+          <div
+            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px 0', cursor: 'grab' }}
+            onPointerDown={handlePointerDown}
+            onPointerUp={handlePointerUp}
+            onPointerMove={handlePointerMove}
+          >
+            <canvas
+              ref={canvasRef}
+              style={{
+                width: canvasSize,
+                height: canvasSize,
+                display: 'block',
+                outline: 'none',
+              }}
+            />
+          </div>
+
+          {/* Footer bar */}
+          <div style={{ borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', fontSize: '10.5px', color: 'var(--text-3)', padding: '7px 14px' }}>
+            <span>897 CAMELS-BR Gauges</span>
+            <span style={{ fontFamily: 'var(--font-mono)' }}>Zoom: {Math.round(scale * 100)}%</span>
+            <span>Drag · Scroll · Click</span>
           </div>
         </div>
 
-        {activeCatchment ? (
-          <>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <div style={{ background: 'var(--bg-elevated)', padding: '10px', borderRadius: 'var(--radius-md)' }}>
-                <div style={{ fontSize: '10.5px', color: 'var(--text-2)' }}>Latitude</div>
-                <div style={{ fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-                  {activeCatchment.lat.toFixed(4)}°
-                </div>
+        {/* Right info panel */}
+        {activeCatchment && (
+          <div ref={infoPanelRef} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {/* Selected basin */}
+            <div style={{ background: 'var(--bg-surface)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', padding: '14px' }}>
+              <div style={{ fontSize: '10px', color: 'var(--text-3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 8 }}>
+                <MapPin size={11} style={{ display: 'inline', marginRight: 3 }} />Selected Basin
               </div>
-              <div style={{ background: 'var(--bg-elevated)', padding: '10px', borderRadius: 'var(--radius-md)' }}>
-                <div style={{ fontSize: '10.5px', color: 'var(--text-2)' }}>Longitude</div>
-                <div style={{ fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-                  {activeCatchment.lon.toFixed(4)}°
-                </div>
+              <div className="globe-gauge-id" style={{ fontSize: '15px', fontWeight: 800, color: 'var(--blue)', fontFamily: 'var(--font-mono)' }}>{activeCatchment.gauge_id}</div>
+              <div style={{ fontSize: '10.5px', color: 'var(--text-3)', marginTop: 3, fontFamily: 'var(--font-mono)' }}>
+                {activeCatchment.lat.toFixed(4)}°, {activeCatchment.lon.toFixed(4)}°
               </div>
-            </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                <span style={{ color: 'var(--text-2)' }}>Spatial Split:</span>
-                <span
-                  style={{
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    color:
-                      activeCatchment.split === 'test'
-                        ? '#10B981'
-                        : activeCatchment.split === 'validation'
-                        ? '#8B5CF6'
-                        : '#3B82F6',
-                  }}
-                >
-                  {activeCatchment.split}
-                </span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7, marginTop: 10 }}>
+                {[
+                  { label: 'Area', value: activeCatchment.area ? ((activeCatchment.area / 1000).toFixed(1) + 'k') : '—', unit: 'km²' },
+                  { label: 'Elevation', value: activeCatchment.elev_mean ? Math.round(activeCatchment.elev_mean) : '—', unit: 'm' },
+                  { label: 'P95', value: activeCatchment.P95_mm_day ? activeCatchment.P95_mm_day.toFixed(2) : '—', unit: 'mm/d', color: '#D97706' },
+                  { label: 'P99', value: activeCatchment.P99_mm_day ? activeCatchment.P99_mm_day.toFixed(2) : '—', unit: 'mm/d', color: '#DC2626' },
+                ].map(({ label, value, unit, color }) => (
+                  <div key={label} className="globe-stat-chip" style={{ background: 'var(--bg-base)', borderRadius: 'var(--radius-sm)', padding: '7px 9px', border: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: '9.5px', color: 'var(--text-3)', fontWeight: 600 }}>{label}</div>
+                    <div style={{ fontSize: '12.5px', fontWeight: 700, color: color || 'var(--text-1)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
+                      {value} <span style={{ fontSize: '9px', color: 'var(--text-3)', fontWeight: 400 }}>{unit}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                <span style={{ color: 'var(--text-2)' }}>Drainage Area:</span>
-                <span style={{ fontWeight: 600 }}>
-                  {activeCatchment.area ? `${activeCatchment.area.toLocaleString()} km²` : 'N/A'}
+
+              <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '10.5px', color: 'var(--text-3)' }}>
+                  {activeCatchment.start_date?.slice(0, 4)} – {activeCatchment.end_date?.slice(0, 4)}
                 </span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                <span style={{ color: 'var(--text-2)' }}>Mean Elevation:</span>
-                <span style={{ fontWeight: 600 }}>
-                  {activeCatchment.elev_mean ? `${activeCatchment.elev_mean.toFixed(0)} m` : 'N/A'}
-                </span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                <span style={{ color: 'var(--text-2)' }}>Record Period:</span>
-                <span style={{ fontWeight: 600, fontFamily: 'var(--font-mono)', fontSize: '11px' }}>
-                  {activeCatchment.start_date} to {activeCatchment.end_date}
-                </span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                <span style={{ color: 'var(--text-2)' }}>Valid 30d Windows:</span>
-                <span style={{ fontWeight: 600, fontFamily: 'var(--font-mono)' }}>
-                  {activeCatchment.valid_windows?.toLocaleString()}
+                <span className="globe-stat-chip" style={{
+                  padding: '2px 7px', borderRadius: 4, fontSize: '10px', fontWeight: 800,
+                  background: activeCatchment.split === 'train' ? '#DBEAFE' : activeCatchment.split === 'val' ? '#D1FAE5' : activeCatchment.split === 'test' ? '#D1FAE5' : '#F3F4F6',
+                  color: activeCatchment.split === 'train' ? '#1D4ED8' : activeCatchment.split === 'val' ? '#065F46' : activeCatchment.split === 'test' ? '#065F46' : '#6B7280',
+                }}>
+                  {activeCatchment.split?.toUpperCase() || 'N/A'}
                 </span>
               </div>
             </div>
 
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
-              <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--text-1)', marginBottom: '8px' }}>
-                Flow Extremes Thresholds
+            {/* Dataset split summary */}
+            <div style={{ background: 'var(--bg-surface)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', padding: '14px' }}>
+              <div style={{ fontSize: '10px', color: 'var(--text-3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 10 }}>
+                <Compass size={11} style={{ display: 'inline', marginRight: 3 }} />Dataset Split
               </div>
-              {activeCatchment.threshold_eligible ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                    <span style={{ color: '#D97706', fontWeight: 600 }}>P95 Flow Threshold:</span>
-                    <span style={{ fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-                      {activeCatchment.P95_mm_day?.toFixed(2)} mm/day
-                    </span>
+              {Object.entries(splitCounts).sort().map(([split, count]) => (
+                <div key={split} className="globe-stat-chip" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', display: 'inline-block', background: splitColors[split] || '#9CA3AF' }} />
+                    <span style={{ fontSize: '11.5px', color: 'var(--text-2)', fontWeight: 600 }}>{split.charAt(0).toUpperCase() + split.slice(1)}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                    <span style={{ color: '#DC2626', fontWeight: 700 }}>P99 Flow Threshold:</span>
-                    <span style={{ fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-                      {activeCatchment.P99_mm_day?.toFixed(2)} mm/day
-                    </span>
-                  </div>
+                  <span style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{count}</span>
                 </div>
-              ) : (
-                <div style={{ fontSize: '11.5px', color: 'var(--text-3)', fontStyle: 'italic' }}>
-                  Catchment has insufficient reference streak to establish official flow thresholds.
-                </div>
-              )}
+              ))}
             </div>
-          </>
-        ) : (
-          <div style={{ fontSize: '12px', color: 'var(--text-3)' }}>Loading catchment list...</div>
+          </div>
         )}
       </div>
     </div>

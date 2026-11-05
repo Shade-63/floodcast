@@ -1,29 +1,18 @@
-# Model Card - FLOODCAST
+# FLOODCAST — Model Card: BasinShiftMultiTask
 
-Fill every TODO from real results. Delete nothing that the brief requires.
+See the authoritative model specification and evaluation card at:
+[`docs/model_card.md`](file:///Users/vrushabhdadabaravkar/floodcast/docs/model_card.md)
 
-## Model
-- Type: TODO (currently the code implements a raw-target LightGBM baseline only)
-- Pre-trained models used: TODO (write "none" if none; the rules require declaring them)
-- Random seed(s): TODO
+**Model:** `BasinShiftMultiTask` (PyTorch)  
+**Checkpoint:** `basinshift_multitask_best.pt` (`SHA-256: 73e8de64ee3e9714f3c8a8057467c534b988ca51b790bd38022579e6a8c56c4e`)  
+**Dataset:** CAMELS-BR v1.2 (897 Brazilian Catchments, 788 benchmark-eligible)  
+**Evaluation Scheme:** Out-of-Cluster Geographic Holdout (14 train clusters, 3 val clusters, 3 test clusters)  
 
-## Data
-- Starter data: organizers' train.csv / test.csv (stations: TODO)
-- Extra stations added: TODO (list IDs, or "none"); cutoff date used: TODO (must equal train end date)
+## Key Out-of-Sample Test Results (115 Test Basins, 725,921 origins)
+- **+1 Day Streamflow:** Macro MAE = 0.10511 mm/day, Macro NSE = 0.83995 (vs Persistence 0.12262 mm/day, NSE 0.79406)
+- **+3 Day Streamflow:** Macro MAE = 0.18464 mm/day, Macro NSE = 0.65363 (vs Persistence 0.22614 mm/day, NSE 0.50051)
+- **+7 Day Streamflow:** Macro MAE = 0.25650 mm/day, Macro NSE = 0.46499 (vs Persistence 0.31581 mm/day, NSE 0.19654)
+- **P95 High Flow Exceedance:** AUPRC = 0.584 (+1d), 0.420 (+3d), 0.249 (+7d)
+- **P99 Extreme Flood Exceedance:** AUPRC = 0.299 (+1d), 0.151 (+3d), 0.066 (+7d)
 
-## Features used
-TODO: list from features.py after the final run (rolling rain windows, API, soil lags, temperature proxies, seasonality, catchment interactions - keep only those actually in the final model).
-
-## Validation (required: train/validation RMSE)
-| Scheme | Overall RMSE | Extreme (top-10%) RMSE | MAE | R2 |
-|---|---|---|---|---|
-| Train (in-sample) | TODO | TODO | TODO | TODO |
-| Forward-in-time split | TODO | TODO | TODO | TODO |
-| Leave-one-station-out | TODO | TODO | TODO | TODO |
-
-## Known limitations
-Hypotheses to CONFIRM with evidence before keeping them here:
-- Large basins may depend on upstream rainfall that local weather does not capture.
-- Dam-regulated rivers may break the rainfall-to-discharge relationship.
-- Extreme floods are rare in training data.
-- TODO: add what the per-station error table actually shows.
+Full technical documentation and validation reports are located in `docs/` and `reports/`.

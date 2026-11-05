@@ -97,24 +97,28 @@ export default function CatchmentMap2D({
 
           {/* Split filter */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            {['all', 'train', 'validation', 'test'].map((sp) => (
+            {[
+              { id: 'all', label: 'All' },
+              { id: 'train', label: 'Training' },
+              { id: 'validation', label: 'Validation' },
+              { id: 'test', label: 'Holdout' }
+            ].map((sp) => (
               <button
-                key={sp}
-                onClick={() => setSplitFilter(sp)}
+                key={sp.id}
+                onClick={() => setSplitFilter(sp.id)}
                 style={{
                   padding: '5px 10px',
                   borderRadius: 'var(--radius-sm)',
                   border: '1px solid',
-                  borderColor: splitFilter === sp ? 'var(--blue)' : 'var(--border)',
-                  background: splitFilter === sp ? 'var(--blue)' : 'var(--bg-base)',
-                  color: splitFilter === sp ? '#FFFFFF' : 'var(--text-2)',
+                  borderColor: splitFilter === sp.id ? 'var(--blue)' : 'var(--border)',
+                  background: splitFilter === sp.id ? 'var(--blue)' : 'var(--bg-base)',
+                  color: splitFilter === sp.id ? '#FFFFFF' : 'var(--text-2)',
                   fontSize: '11px',
                   fontWeight: 600,
-                  textTransform: 'capitalize',
                   cursor: 'pointer',
                 }}
               >
-                {sp}
+                {sp.label}
               </button>
             ))}
           </div>

@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FLOODCAST_Predictions_Export_Schema",
+  "description": "Provisional machine-readable JSON Schema for FLOODCAST / BASINSHIFT multi-horizon streamflow and flood hazard predictions.",
+  "type": "object",
+  "required": [
+    "catchment_id",
+    "forecast_origin",
+    "target_date_1d",
+    "predicted_discharge_1d",
+    "target_date_3d",
+    "predicted_discharge_3d",
+    "target_date_7d",
+    "predicted_discharge_7d",
+    "p95_probability_1d",
+    "p99_probability_1d",
+    "p95_probability_3d",
+    "p99_probability_3d",
+    "p95_probability_7d",
+    "p99_probability_7d"
+  ],
+  "properties": {
+    "catchment_id": {
+      "description": "8-digit string identifier for the CAMELS-BR river basin gauge.",
+      "type": "string",
+      "pattern": "^[0-9]{8}$"
+    },
+    "forecast_origin": {
+      "description": "Terminal timestamp of the 30-day antecedent observation window (YYYY-MM-DD).",
+      "type": "string",
+      "format": "date"
+    },
+    "target_date_1d": {
+      "description": "Forecast verification date at +1 day lead time (YYYY-MM-DD).",
+      "type": "string",
+      "format": "date"
+    },
+    "predicted_discharge_1d": {
+      "description": "Predicted daily streamflow at +1 day horizon in millimeters per day (mm/day). Non-negative float.",
+      "type": "number",
+      "minimum": 0.0
+    },
+    "target_date_3d": {
+      "description": "Forecast verification date at +3 days lead time (YYYY-MM-DD).",
+      "type": "string",
+      "format": "date"
+    },
+    "predicted_discharge_3d": {
+      "description": "Predicted daily streamflow at +3 days horizon in millimeters per day (mm/day). Non-negative float.",
+      "type": "number",
+      "minimum": 0.0
+    },
+    "target_date_7d": {
+      "description": "Forecast verification date at +7 days lead time (YYYY-MM-DD).",
+      "type": "string",
+      "format": "date"
+    },
+    "predicted_discharge_7d": {
+      "description": "Predicted daily streamflow at +7 days horizon in millimeters per day (mm/day). Non-negative float.",
+      "type": "number",
+      "minimum": 0.0
+    },
+    "p95_probability_1d": {
+      "description": "Calibrated exceedance probability of catchment climatological P95 threshold at +1 day horizon.",
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "p99_probability_1d": {
+      "description": "Calibrated exceedance probability of catchment climatological P99 threshold at +1 day horizon. Must be <= p95_probability_1d.",
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "p95_probability_3d": {
+      "description": "Calibrated exceedance probability of catchment climatological P95 threshold at +3 days horizon.",
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "p99_probability_3d": {
+      "description": "Calibrated exceedance probability of catchment climatological P99 threshold at +3 days horizon. Must be <= p95_probability_3d.",
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "p95_probability_7d": {
+      "description": "Calibrated exceedance probability of catchment climatological P95 threshold at +7 days horizon.",
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "p99_probability_7d": {
+      "description": "Calibrated exceedance probability of catchment climatological P99 threshold at +7 days horizon. Must be <= p95_probability_7d.",
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "provenance": {
+      "description": "Source of historical input observations used for inference.",
+      "type": "string",
+      "enum": [
+        "original_dataset_history",
+        "uploaded_observations_csv",
+        "manually_edited_observations",
+        "static_feature_overrides"
+      ]
+    }
+  }
+}
+
