@@ -39,32 +39,33 @@ function unproject(clickX, clickY, phi, theta, scale = 1, width, height) {
 }
 
 export default function GlobeView({ catchments, selectedId, onSelectCatchment, onSwitchTo2D }) {
-  const canvasRef = useRef(null);
+  const canvasRef    = useRef(null);
   const containerRef = useRef(null);
-  const globeRef = useRef(null);
+  const globeRef     = useRef(null);
+
   // GSAP animation targets
-  const infoPanelRef = useRef(null);
+  const infoPanelRef   = useRef(null);
   const controlsRowRef = useRef(null);
-  const statChipsRef = useRef(null);
 
-  const pointerInteracting = useRef(null);
+  const pointerInteracting        = useRef(null);
   const pointerInteractionMovement = useRef(0);
-  const pointerStartPos = useRef({ x: 0, y: 0, time: 0 });
+  const pointerStartPos           = useRef({ x: 0, y: 0, time: 0 });
 
-  // Brazil-centered: lon ≈ -53° → phi = 53°×π/180 + 3π/2 ≈ 5.64
-  const phiRef = useRef(5.64);
-  const thetaRef = useRef(-0.26);
-  const scaleRef = useRef(1.0);
-  const targetPhiRef = useRef(null);
+  // Brazil-centered: lon ≈ −53° → phi ≈ 5.64 rad, lat ≈ −10° → theta ≈ −0.17 rad
+  const phiRef         = useRef(5.64);
+  const thetaRef       = useRef(-0.17);
+  const scaleRef       = useRef(1.0);
+  const targetPhiRef   = useRef(null);
   const targetThetaRef = useRef(null);
   const targetScaleRef = useRef(null);
 
   const [isAutoRotate, setIsAutoRotate] = useState(false);
   const isAutoRotateRef = useRef(false);
-  const [scale, setScale] = useState(1.0);
+  const [scale, setScale]               = useState(1.0);
   const [hoveredCatchment, setHoveredCatchment] = useState(null);
-  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
-  // Actual rendered canvas size (CSS pixels)
+  const [tooltipPos, setTooltipPos]     = useState({ x: 0, y: 0 });
+
+  // Responsive canvas size (capped at 560 px)
   const [canvasSize, setCanvasSize] = useState(480);
 
   useEffect(() => {
@@ -82,31 +83,28 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
     if (!el) return;
     const ro = new ResizeObserver(entries => {
       const w = entries[0].contentRect.width;
-      setCanvasSize(Math.min(Math.floor(w), 560));
+      setCanvasSize(Math.min(Math.floor(w * 0.9), 560));
     });
     ro.observe(el);
-    setCanvasSize(Math.min(Math.floor(el.getBoundingClientRect().width), 560));
+    setCanvasSize(Math.min(Math.floor(el.getBoundingClientRect().width * 0.9), 560));
     return () => ro.disconnect();
   }, []);
 
   // ── GSAP: Globe container + controls entry animation on mount ─────
   useEffect(() => {
     const ctx = gsap.context(() => {
-      // Controls row slides down
       if (controlsRowRef.current) {
         gsap.fromTo(controlsRowRef.current,
           { y: -16, opacity: 0 },
           { y: 0, opacity: 1, duration: 0.45, ease: 'power3.out', delay: 0.1 }
         );
       }
-      // Globe viewport pops in
       if (containerRef.current) {
         gsap.fromTo(containerRef.current,
           { scale: 0.96, opacity: 0 },
           { scale: 1, opacity: 1, duration: 0.55, ease: 'power3.out', delay: 0.2 }
         );
       }
-      // Info panel slides in from right
       if (infoPanelRef.current) {
         gsap.fromTo(infoPanelRef.current,
           { x: 24, opacity: 0 },
@@ -120,13 +118,11 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
   // ── GSAP: Re-animate info panel stat chips when selected basin changes
   useEffect(() => {
     if (!infoPanelRef.current) return;
-    // Flash the gauge ID label
     gsap.fromTo(
       infoPanelRef.current.querySelector('.globe-gauge-id'),
       { scale: 1.08, color: '#06B6D4' },
       { scale: 1, color: '#2563EB', duration: 0.4, ease: 'power2.out' }
     );
-    // Stagger the stat chips
     const chips = infoPanelRef.current.querySelectorAll('.globe-stat-chip');
     if (chips.length) {
       gsap.fromTo(Array.from(chips),
@@ -146,25 +142,25 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
       let diff = (targetPhi - currentPhi) % twoPi;
       if (diff > PI) diff -= twoPi;
       if (diff < -PI) diff += twoPi;
-      targetPhiRef.current = currentPhi + diff;
+      targetPhiRef.current   = currentPhi + diff;
       targetThetaRef.current = Math.max(-1.1, Math.min(1.1, targetTheta));
     }
   }, [selectedId, activeCatchment]);
 
-  // Globe init — re-create when canvasSize changes so pixel dimensions match
+  // Globe init — re-create when canvasSize changes
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !catchments || catchments.length === 0 || canvasSize < 100) return;
 
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const px = canvasSize * dpr;
+    const px  = canvasSize * dpr;
 
     const buildMarkers = () => catchments.map(c => {
       const isSelected = c.gauge_id === selectedId;
-      const isTrain = c.split === 'train';
+      const isTrain    = c.split === 'train';
       return {
         location: [c.lat, c.lon],
-        size: isSelected ? 0.075 : 0.038,
+        size:  isSelected ? 0.075 : 0.038,
         color: isSelected
           ? [0.06, 0.72, 0.95]
           : isTrain ? [0.18, 0.50, 0.92] : [0.94, 0.62, 0.07],
@@ -176,18 +172,18 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
     try {
       globe = createGlobe(canvas, {
         devicePixelRatio: dpr,
-        width: px,
+        width:  px,
         height: px,
-        phi: phiRef.current,
-        theta: thetaRef.current,
-        scale: scaleRef.current,
-        dark: 0,
-        diffuse: 1.2,
-        mapSamples: 14000,
+        phi:    phiRef.current,
+        theta:  thetaRef.current,
+        scale:  scaleRef.current,
+        dark:        0,
+        diffuse:     1.2,
+        mapSamples:  14000,
         mapBrightness: 4,
-        baseColor: [0.72, 0.84, 0.96],
+        baseColor:   [0.72, 0.84, 0.96],
         markerColor: [0.02, 0.55, 0.85],
-        glowColor: [0.58, 0.78, 0.97],
+        glowColor:   [0.58, 0.78, 0.97],
         markers: buildMarkers(),
       });
       globeRef.current = globe;
@@ -197,11 +193,11 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
           phiRef.current += 0.003;
         }
         if (targetPhiRef.current !== null && pointerInteracting.current === null) {
-          phiRef.current += (targetPhiRef.current - phiRef.current) * 0.08;
+          phiRef.current   += (targetPhiRef.current   - phiRef.current)   * 0.08;
           thetaRef.current += (targetThetaRef.current - thetaRef.current) * 0.08;
-          if (Math.abs(targetPhiRef.current - phiRef.current) < 0.001 &&
+          if (Math.abs(targetPhiRef.current   - phiRef.current)   < 0.001 &&
               Math.abs(targetThetaRef.current - thetaRef.current) < 0.001) {
-            targetPhiRef.current = null;
+            targetPhiRef.current   = null;
             targetThetaRef.current = null;
           }
         }
@@ -209,24 +205,26 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
           const diff = targetScaleRef.current - scaleRef.current;
           scaleRef.current += diff * 0.1;
           if (Math.abs(diff) < 0.005) {
-            scaleRef.current = targetScaleRef.current;
+            scaleRef.current   = targetScaleRef.current;
             targetScaleRef.current = null;
           }
           setScale(Math.round(scaleRef.current * 100) / 100);
         }
 
         globe.update({
-          phi: phiRef.current,
+          phi:   phiRef.current,
           theta: thetaRef.current,
           scale: scaleRef.current,
           markers: catchments.map(c => {
-            const isH = hoveredCatchment && hoveredCatchment.gauge_id === c.gauge_id;
+            const isH   = hoveredCatchment && hoveredCatchment.gauge_id === c.gauge_id;
             const isSel = c.gauge_id === selectedId;
             const isTrain = c.split === 'train';
             return {
               location: [c.lat, c.lon],
-              size: isSel ? 0.085 : isH ? 0.065 : 0.038,
-              color: isSel ? [0.06, 0.72, 0.95] : isH ? [0.96, 0.62, 0.07] : isTrain ? [0.18, 0.50, 0.92] : [0.94, 0.62, 0.07],
+              size:  isSel ? 0.085 : isH ? 0.065 : 0.038,
+              color: isSel  ? [0.06, 0.72, 0.95]
+                   : isH   ? [0.96, 0.62, 0.07]
+                   : isTrain ? [0.18, 0.50, 0.92] : [0.94, 0.62, 0.07],
             };
           }),
         });
@@ -242,7 +240,7 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
       if (globe) globe.destroy();
       globeRef.current = null;
     };
-  }, [catchments, canvasSize]); // Note: selectedId / hoveredCatchment are read via refs in animate loop
+  }, [catchments, canvasSize]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Wheel zoom
   useEffect(() => {
@@ -251,7 +249,7 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
     const handler = e => {
       e.preventDefault();
       const next = Math.max(0.6, Math.min(3.0, scaleRef.current * (e.deltaY < 0 ? 1.08 : 0.93)));
-      scaleRef.current = next;
+      scaleRef.current   = next;
       setScale(Math.round(next * 100) / 100);
       targetScaleRef.current = null;
     };
@@ -259,8 +257,8 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
     return () => el.removeEventListener('wheel', handler);
   }, []);
 
-  const handleZoomIn  = () => { targetScaleRef.current = Math.min(3.0, scaleRef.current + 0.25); };
-  const handleZoomOut = () => { targetScaleRef.current = Math.max(0.6, scaleRef.current - 0.25); };
+  const handleZoomIn    = () => { targetScaleRef.current = Math.min(3.0, scaleRef.current + 0.25); };
+  const handleZoomOut   = () => { targetScaleRef.current = Math.max(0.6, scaleRef.current - 0.25); };
   const handleZoomReset = () => { targetScaleRef.current = 1.0; };
 
   const handlePointerDown = e => {
@@ -328,8 +326,8 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
   };
 
   const handleResetView = () => {
-    targetPhiRef.current = 5.64;
-    targetThetaRef.current = -0.26;
+    targetPhiRef.current   = 5.64;
+    targetThetaRef.current = -0.17;
     targetScaleRef.current = 1.0;
     setIsAutoRotate(false);
   };
@@ -339,10 +337,10 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
   }
 
   const splitCounts = catchments.reduce((acc, c) => { acc[c.split] = (acc[c.split] || 0) + 1; return acc; }, {});
-  const splitColors = { train: '#2563EB', val: '#10B981', test: '#10B981' };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+
       {/* Controls row */}
       <div ref={controlsRowRef} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -357,6 +355,7 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
             <button className="btn btn-ghost btn-sm" onClick={onSwitchTo2D}>Switch to 2D Map</button>
           )}
         </div>
+
         {/* Legend */}
         <div style={{ display: 'flex', gap: '14px', fontSize: '11px', color: 'var(--text-2)', alignItems: 'center' }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -414,8 +413,8 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
             <canvas
               ref={canvasRef}
               style={{
-                width: canvasSize,
-                height: canvasSize,
+                width:   canvasSize,
+                height:  canvasSize,
                 display: 'block',
                 outline: 'none',
               }}
@@ -433,22 +432,25 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
         {/* Right info panel */}
         {activeCatchment && (
           <div ref={infoPanelRef} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+
             {/* Selected basin */}
             <div style={{ background: 'var(--bg-surface)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', padding: '14px' }}>
               <div style={{ fontSize: '10px', color: 'var(--text-3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 8 }}>
                 <MapPin size={11} style={{ display: 'inline', marginRight: 3 }} />Selected Basin
               </div>
-              <div className="globe-gauge-id" style={{ fontSize: '15px', fontWeight: 800, color: 'var(--blue)', fontFamily: 'var(--font-mono)' }}>{activeCatchment.gauge_id}</div>
+              <div className="globe-gauge-id" style={{ fontSize: '15px', fontWeight: 800, color: 'var(--blue)', fontFamily: 'var(--font-mono)' }}>
+                {activeCatchment.gauge_id}
+              </div>
               <div style={{ fontSize: '10.5px', color: 'var(--text-3)', marginTop: 3, fontFamily: 'var(--font-mono)' }}>
                 {activeCatchment.lat.toFixed(4)}°, {activeCatchment.lon.toFixed(4)}°
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7, marginTop: 10 }}>
                 {[
-                  { label: 'Area', value: activeCatchment.area ? ((activeCatchment.area / 1000).toFixed(1) + 'k') : '—', unit: 'km²' },
-                  { label: 'Elevation', value: activeCatchment.elev_mean ? Math.round(activeCatchment.elev_mean) : '—', unit: 'm' },
-                  { label: 'P95', value: activeCatchment.P95_mm_day ? activeCatchment.P95_mm_day.toFixed(2) : '—', unit: 'mm/d', color: '#D97706' },
-                  { label: 'P99', value: activeCatchment.P99_mm_day ? activeCatchment.P99_mm_day.toFixed(2) : '—', unit: 'mm/d', color: '#DC2626' },
+                  { label: 'Area',      value: activeCatchment.area      ? (activeCatchment.area / 1000).toFixed(1) + 'k' : '—', unit: 'km²' },
+                  { label: 'Elevation', value: activeCatchment.elev_mean ? Math.round(activeCatchment.elev_mean) : '—',          unit: 'm'   },
+                  { label: 'P95',       value: activeCatchment.P95_mm_day ? activeCatchment.P95_mm_day.toFixed(2) : '—',         unit: 'mm/d', color: '#D97706' },
+                  { label: 'P99',       value: activeCatchment.P99_mm_day ? activeCatchment.P99_mm_day.toFixed(2) : '—',         unit: 'mm/d', color: '#DC2626' },
                 ].map(({ label, value, unit, color }) => (
                   <div key={label} className="globe-stat-chip" style={{ background: 'var(--bg-base)', borderRadius: 'var(--radius-sm)', padding: '7px 9px', border: '1px solid var(--border)' }}>
                     <div style={{ fontSize: '9.5px', color: 'var(--text-3)', fontWeight: 600 }}>{label}</div>
@@ -465,10 +467,14 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
                 </span>
                 <span className="globe-stat-chip" style={{
                   padding: '2px 7px', borderRadius: 4, fontSize: '10px', fontWeight: 800,
-                  background: activeCatchment.split === 'train' ? '#DBEAFE' : activeCatchment.split === 'val' ? '#D1FAE5' : activeCatchment.split === 'test' ? '#D1FAE5' : '#F3F4F6',
-                  color: activeCatchment.split === 'train' ? '#1D4ED8' : activeCatchment.split === 'val' ? '#065F46' : activeCatchment.split === 'test' ? '#065F46' : '#6B7280',
+                  background: activeCatchment.split === 'train' ? '#DBEAFE'
+                    : activeCatchment.split === 'val'  ? '#D1FAE5'
+                    : activeCatchment.split === 'test' ? '#D1FAE5' : '#F3F4F6',
+                  color: activeCatchment.split === 'train' ? '#1D4ED8'
+                    : activeCatchment.split === 'val'  ? '#065F46'
+                    : activeCatchment.split === 'test' ? '#065F46' : '#6B7280',
                 }}>
-                  {activeCatchment.split?.toUpperCase() || 'N/A'}
+                  {(activeCatchment.split ?? 'N/A').toUpperCase()}
                 </span>
               </div>
             </div>
@@ -481,8 +487,12 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
               {Object.entries(splitCounts).sort().map(([split, count]) => (
                 <div key={split} className="globe-stat-chip" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ width: 7, height: 7, borderRadius: '50%', display: 'inline-block', background: splitColors[split] || '#9CA3AF' }} />
-                    <span style={{ fontSize: '11.5px', color: 'var(--text-2)', fontWeight: 600 }}>{split.charAt(0).toUpperCase() + split.slice(1)}</span>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', display: 'inline-block',
+                      background: split === 'train' ? '#2563EB' : split === 'val' ? '#10B981' : split === 'test' ? '#10B981' : '#9CA3AF',
+                    }} />
+                    <span style={{ fontSize: '11.5px', color: 'var(--text-2)', fontWeight: 600 }}>
+                      {split.charAt(0).toUpperCase() + split.slice(1)}
+                    </span>
                   </div>
                   <span style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{count}</span>
                 </div>
