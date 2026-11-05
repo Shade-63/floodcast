@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 ARTIFACTS_DIR = Path(os.getenv("ARTIFACTS_DIR", "./artifacts"))
-HF_REPO       = os.getenv("HF_REPO",  "Shade-63/floodcast-artifacts")
+HF_REPO       = os.getenv("HF_REPO",  "vrushabd/floodcast-artifacts")
 HF_TOKEN      = os.getenv("HF_TOKEN", None)
 
 # Every file the backend needs to start
@@ -76,3 +76,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

@@ -51,20 +51,26 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
   const pointerInteractionMovement = useRef(0);
   const pointerStartPos           = useRef({ x: 0, y: 0, time: 0 });
 
-  // Brazil center (CAMELS-BR basin centroid ≈ lat −15°, lon −51°)
-  // phi  = 51° × π/180 + 3π/2 ≈ 5.60   (horizontal / longitude)
-  // theta = −15° × π/180      ≈ −0.26  (vertical / latitude tilt)
-  const phiRef         = useRef(5.60);
-  const thetaRef       = useRef(-0.26);
-  const scaleRef       = useRef(0.85);
+  // Show all CAMELS-BR basins: centroid ≈ lat −17°, lon −50°
+  // phi  = 50 × π/180 + 3π/2 ≈ 5.585  (longitude)
+  // theta = −17 × π/180      ≈ −0.297 (latitude tilt)
+  const DEFAULT_PHI   = 5.585;
+  const DEFAULT_THETA = -0.297;
+  const DEFAULT_SCALE = 0.80;
+
+  const phiRef         = useRef(DEFAULT_PHI);
+  const thetaRef       = useRef(DEFAULT_THETA);
+  const scaleRef       = useRef(DEFAULT_SCALE);
   const targetPhiRef   = useRef(null);
   const targetThetaRef = useRef(null);
   const targetScaleRef = useRef(null);
 
+  // Track whether the user has explicitly selected a catchment (vs page-load default)
+  const userSelectedRef = useRef(false);
+
   const [isAutoRotate, setIsAutoRotate] = useState(false);
   const isAutoRotateRef = useRef(false);
-  const [scale, setScale]               = useState(0.85);
-  const [hoveredCatchment, setHoveredCatchment] = useState(null);
+  const [scale, setScale]               = useState(0.80);  const [hoveredCatchment, setHoveredCatchment] = useState(null);
   const [tooltipPos, setTooltipPos]     = useState({ x: 0, y: 0 });
 
   // Responsive canvas size (capped at 560 px)
@@ -134,8 +140,10 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
     }
   }, [selectedId]);
 
-  // Center on active catchment when selectedId changes
+  // Center on active catchment ONLY when user explicitly changes selectedId (not on mount)
+  const mountedRef = useRef(false);
   useEffect(() => {
+    if (!mountedRef.current) { mountedRef.current = true; return; } // skip first render
     if (activeCatchment) {
       const targetPhi = (-activeCatchment.lon * PI) / 180 + (3 * PI) / 2;
       const targetTheta = (activeCatchment.lat * PI) / 180;
@@ -147,7 +155,7 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
       targetPhiRef.current   = currentPhi + diff;
       targetThetaRef.current = Math.max(-1.1, Math.min(1.1, targetTheta));
     }
-  }, [selectedId, activeCatchment]);
+  }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Globe init — re-create when canvasSize changes
   useEffect(() => {
@@ -264,6 +272,9 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
   const handleZoomReset = () => { targetScaleRef.current = 1.0; };
 
   const handlePointerDown = e => {
+    // Anchor interaction to current phi so drag continues from wherever the globe is,
+    // not from zero — fixes the classic "first drag snaps globe to 0°" bug.
+    pointerInteractionMovement.current = phiRef.current / 0.006;
     pointerInteracting.current = e.clientX - pointerInteractionMovement.current;
     pointerStartPos.current = { x: e.clientX, y: e.clientY, time: Date.now() };
     if (canvasRef.current) canvasRef.current.style.cursor = 'grabbing';
@@ -328,9 +339,9 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
   };
 
   const handleResetView = () => {
-    targetPhiRef.current   = 5.60;
-    targetThetaRef.current = -0.26;
-    targetScaleRef.current = 0.85;
+    targetPhiRef.current   = 5.585;
+    targetThetaRef.current = -0.297;
+    targetScaleRef.current = 0.80;
     setIsAutoRotate(false);
   };
 
