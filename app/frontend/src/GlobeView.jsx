@@ -70,8 +70,24 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
 
   const [isAutoRotate, setIsAutoRotate] = useState(false);
   const isAutoRotateRef = useRef(false);
-  const [scale, setScale]               = useState(0.80);  const [hoveredCatchment, setHoveredCatchment] = useState(null);
+  const [scale, setScale]               = useState(0.80);
+  const [hoveredCatchment, setHoveredCatchment] = useState(null);
   const [tooltipPos, setTooltipPos]     = useState({ x: 0, y: 0 });
+  const [canvasSize, setCanvasSize]     = useState(0);
+
+  // Responsive canvas size — watch container width so globe rebuilds to fill it
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const w = Math.round(entry.contentRect.width);
+      if (w > 50) setCanvasSize(w);
+    });
+    ro.observe(el);
+    const w = Math.round(el.getBoundingClientRect().width);
+    if (w > 50) setCanvasSize(w);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     isAutoRotateRef.current = isAutoRotate;
@@ -243,22 +259,6 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
       globeRef.current = null;
     };
   }, [catchments, canvasSize]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Responsive canvas size — watch container width so globe rebuilds to fill it
-  const [canvasSize, setCanvasSize] = useState(0);
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([entry]) => {
-      const w = Math.round(entry.contentRect.width);
-      if (w > 50) setCanvasSize(w);
-    });
-    ro.observe(el);
-    // Measure immediately after first paint
-    const w = Math.round(el.getBoundingClientRect().width);
-    if (w > 50) setCanvasSize(w);
-    return () => ro.disconnect();
-  }, []);
 
   // Wheel zoom
   useEffect(() => {
