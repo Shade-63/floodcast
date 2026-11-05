@@ -40,6 +40,7 @@ body {
   color: var(--text-1);
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
+  zoom: 1.25;
 }
 
 /* ─── App shell ──────────────────────────────────────────────────── */
