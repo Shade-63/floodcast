@@ -51,17 +51,19 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
   const pointerInteractionMovement = useRef(0);
   const pointerStartPos           = useRef({ x: 0, y: 0, time: 0 });
 
-  // Brazil-centered: lon ≈ −53° → phi ≈ 5.64 rad, lat ≈ −10° → theta ≈ −0.17 rad
-  const phiRef         = useRef(5.64);
-  const thetaRef       = useRef(-0.17);
-  const scaleRef       = useRef(1.0);
+  // Brazil center (CAMELS-BR basin centroid ≈ lat −15°, lon −51°)
+  // phi  = 51° × π/180 + 3π/2 ≈ 5.60   (horizontal / longitude)
+  // theta = −15° × π/180      ≈ −0.26  (vertical / latitude tilt)
+  const phiRef         = useRef(5.60);
+  const thetaRef       = useRef(-0.26);
+  const scaleRef       = useRef(0.85);
   const targetPhiRef   = useRef(null);
   const targetThetaRef = useRef(null);
   const targetScaleRef = useRef(null);
 
   const [isAutoRotate, setIsAutoRotate] = useState(false);
   const isAutoRotateRef = useRef(false);
-  const [scale, setScale]               = useState(1.0);
+  const [scale, setScale]               = useState(0.85);
   const [hoveredCatchment, setHoveredCatchment] = useState(null);
   const [tooltipPos, setTooltipPos]     = useState({ x: 0, y: 0 });
 
@@ -81,12 +83,13 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(entries => {
-      const w = entries[0].contentRect.width;
-      setCanvasSize(Math.min(Math.floor(w * 0.9), 560));
-    });
+    const measure = () => {
+      const w = Math.floor(el.getBoundingClientRect().width);
+      if (w > 50) setCanvasSize(Math.min(w, 580));
+    };
+    const ro = new ResizeObserver(measure);
     ro.observe(el);
-    setCanvasSize(Math.min(Math.floor(el.getBoundingClientRect().width * 0.9), 560));
+    measure();
     return () => ro.disconnect();
   }, []);
 
@@ -326,9 +329,9 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
   };
 
   const handleResetView = () => {
-    targetPhiRef.current   = 5.64;
-    targetThetaRef.current = -0.17;
-    targetScaleRef.current = 1.0;
+    targetPhiRef.current   = 5.60;
+    targetThetaRef.current = -0.26;
+    targetScaleRef.current = 0.85;
     setIsAutoRotate(false);
   };
 
@@ -382,8 +385,10 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
             borderRadius: 'var(--radius-lg)',
             border: '1px solid var(--border)',
             overflow: 'hidden',
+            aspectRatio: '1 / 1',          // perfect square — globe never squishes
             display: 'flex',
-            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
           {/* Zoom buttons */}
@@ -403,9 +408,9 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
             </div>
           )}
 
-          {/* Canvas — square, centered */}
+          {/* Canvas — fills the square container */}
           <div
-            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px 0', cursor: 'grab' }}
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'grab' }}
             onPointerDown={handlePointerDown}
             onPointerUp={handlePointerUp}
             onPointerMove={handlePointerMove}
