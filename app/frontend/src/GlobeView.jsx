@@ -391,22 +391,24 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
         </div>
       </div>
 
-      {/* Main layout: Globe | Info panel */}
+      {/* Main layout: Globe centered | Info panel right */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 230px', gap: '16px', alignItems: 'start' }}>
 
-        {/* Globe viewport */}
-        <div
-          ref={containerRef}
-          style={{
-            position: 'relative',
-            background: 'var(--bg-surface)',
-            borderRadius: 'var(--radius-lg)',
-            border: '1px solid var(--border)',
-            overflow: 'hidden',
-            aspectRatio: '1 / 1',   /* square — globe never squishes */
-            width: '100%',
-          }}
-        >
+        {/* Globe viewport — square, centered, capped to fit viewport */}
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <div
+            ref={containerRef}
+            style={{
+              position: 'relative',
+              background: 'var(--bg-surface)',
+              borderRadius: 'var(--radius-lg)',
+              border: '1px solid var(--border)',
+              overflow: 'hidden',
+              aspectRatio: '1 / 1',
+              width: '100%',
+              maxWidth: 'min(100%, calc(80vh / 1.25))',
+            }}
+          >
           {/* Zoom buttons */}
           <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 15, display: 'flex', flexDirection: 'column', gap: 4, background: 'rgba(255,255,255,0.93)', backdropFilter: 'blur(8px)', padding: 4, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
             <button className="btn btn-ghost btn-sm" style={{ width: 28, height: 28, padding: 0 }} onClick={handleZoomIn}><ZoomIn size={13} /></button>
@@ -453,7 +455,8 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
             <span style={{ fontFamily: 'var(--font-mono)' }}>Zoom: {Math.round(scale * 100)}%</span>
             <span>Drag · Scroll · Click</span>
           </div>
-        </div>
+          </div>
+        </div> {/* end centering wrapper */}
 
         {/* Right info panel */}
         {activeCatchment && (
