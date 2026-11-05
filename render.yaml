@@ -25,6 +25,6 @@ services:
       - key: ARTIFACTS_DIR
         value: /opt/render/project/src/artifacts
       - key: HF_REPO
-        value: Shade-63/floodcast-artifacts
+        value: vrushabd/floodcast-artifacts
       - key: HF_TOKEN
         sync: false   # set manually in Render dashboard > Environment
