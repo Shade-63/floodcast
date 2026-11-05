@@ -73,9 +73,6 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
   const [scale, setScale]               = useState(0.80);  const [hoveredCatchment, setHoveredCatchment] = useState(null);
   const [tooltipPos, setTooltipPos]     = useState({ x: 0, y: 0 });
 
-  // Responsive canvas size (capped at 560 px)
-  const [canvasSize, setCanvasSize] = useState(480);
-
   useEffect(() => {
     isAutoRotateRef.current = isAutoRotate;
   }, [isAutoRotate]);
@@ -84,20 +81,6 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
     if (!catchments || catchments.length === 0) return null;
     return catchments.find(c => c.gauge_id === selectedId) || catchments[0];
   }, [catchments, selectedId]);
-
-  // Track container width to size canvas responsively
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const measure = () => {
-      const w = Math.floor(el.getBoundingClientRect().width);
-      if (w > 50) setCanvasSize(Math.min(w, 580));
-    };
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    measure();
-    return () => ro.disconnect();
-  }, []);
   // ── GSAP: Globe container + controls entry animation on mount ─────
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -157,13 +140,22 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
     }
   }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Globe init — re-create when canvasSize changes
+  // Globe init — re-create when container resizes
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !catchments || catchments.length === 0 || canvasSize < 100) return;
+    const container = containerRef.current;
+    if (!canvas || !container || !catchments || catchments.length === 0) return;
 
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const px  = canvasSize * dpr;
+    const rect = container.getBoundingClientRect();
+    const cssPx = Math.round(Math.min(rect.width, rect.height));  // CSS pixels (square)
+    const bufPx = cssPx * dpr;                                     // buffer pixels for cobe
+
+    if (bufPx < 100) return;
+
+    // Set canvas CSS size to exactly match the square container
+    canvas.style.width  = `${cssPx}px`;
+    canvas.style.height = `${cssPx}px`;
 
     const buildMarkers = () => catchments.map(c => {
       const isSelected = c.gauge_id === selectedId;
@@ -182,8 +174,8 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
     try {
       globe = createGlobe(canvas, {
         devicePixelRatio: dpr,
-        width:  px,
-        height: px,
+        width:  bufPx,
+        height: bufPx,
         phi:    phiRef.current,
         theta:  thetaRef.current,
         scale:  scaleRef.current,
@@ -251,6 +243,22 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
       globeRef.current = null;
     };
   }, [catchments, canvasSize]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Responsive canvas size — watch container width so globe rebuilds to fill it
+  const [canvasSize, setCanvasSize] = useState(0);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const w = Math.round(entry.contentRect.width);
+      if (w > 50) setCanvasSize(w);
+    });
+    ro.observe(el);
+    // Measure immediately after first paint
+    const w = Math.round(el.getBoundingClientRect().width);
+    if (w > 50) setCanvasSize(w);
+    return () => ro.disconnect();
+  }, []);
 
   // Wheel zoom
   useEffect(() => {
@@ -433,8 +441,6 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
             <canvas
               ref={canvasRef}
               style={{
-                width:   canvasSize,
-                height:  canvasSize,
                 display: 'block',
                 outline: 'none',
               }}
