@@ -392,10 +392,10 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
       </div>
 
       {/* Main layout: Globe centered | Info panel right */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 230px', gap: '16px', alignItems: 'start' }}>
+      <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
 
-        {/* Globe viewport — square, centered, capped to fit viewport */}
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
+        {/* Globe viewport — takes remaining space, globe square centered inside */}
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
           <div
             ref={containerRef}
             style={{
@@ -405,8 +405,7 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
               border: '1px solid var(--border)',
               overflow: 'hidden',
               aspectRatio: '1 / 1',
-              width: '100%',
-              maxWidth: 'min(100%, calc(80vh / 1.25))',
+              width: 'min(100%, 520px)',   /* fixed square, centered in its flex column */
             }}
           >
           {/* Zoom buttons */}
@@ -456,11 +455,11 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
             <span>Drag · Scroll · Click</span>
           </div>
           </div>
-        </div> {/* end centering wrapper */}
+        </div> {/* end flex centering wrapper */}
 
         {/* Right info panel */}
         {activeCatchment && (
-          <div ref={infoPanelRef} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div ref={infoPanelRef} style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '230px', flexShrink: 0 }}>
 
             {/* Selected basin */}
             <div style={{ background: 'var(--bg-surface)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', padding: '14px' }}>
