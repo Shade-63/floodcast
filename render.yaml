@@ -1,5 +1,5 @@
 services:
-  # React Dashboard (with Interactive 3D WebGL Globe & Hydrological Calculator)
+  # ── React Frontend (static) ───────────────────────────────────────────────
   - type: web
     name: floodcast-dashboard
     runtime: static
@@ -11,11 +11,20 @@ services:
         source: /*
         destination: /index.html
 
-  # Optional: Streamlit Python App
+  # ── FastAPI Backend ───────────────────────────────────────────────────────
   - type: web
-    name: floodcast-streamlit
+    name: floodcast-api
     runtime: python
-    plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: streamlit run app/streamlit_app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
-
+    plan: starter
+    buildCommand: >
+      pip install torch --index-url https://download.pytorch.org/whl/cpu &&
+      pip install -r requirements.txt &&
+      python scripts/download_artifacts.py
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ARTIFACTS_DIR
+        value: /opt/render/project/src/artifacts
+      - key: HF_REPO
+        value: Shade-63/floodcast-artifacts
+      - key: HF_TOKEN
+        sync: false   # set manually in Render dashboard > Environment
