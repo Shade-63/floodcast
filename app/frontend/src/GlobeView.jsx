@@ -92,7 +92,6 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
     measure();
     return () => ro.disconnect();
   }, []);
-
   // ── GSAP: Globe container + controls entry animation on mount ─────
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -385,10 +384,8 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
             borderRadius: 'var(--radius-lg)',
             border: '1px solid var(--border)',
             overflow: 'hidden',
-            aspectRatio: '1 / 1',          // perfect square — globe never squishes
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            aspectRatio: '1 / 1',   /* square — globe never squishes */
+            width: '100%',
           }}
         >
           {/* Zoom buttons */}
@@ -408,9 +405,16 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
             </div>
           )}
 
-          {/* Canvas — fills the square container */}
+          {/* Canvas — absolutely fills the square container and is perfectly centered */}
           <div
-            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'grab' }}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'grab',
+            }}
             onPointerDown={handlePointerDown}
             onPointerUp={handlePointerUp}
             onPointerMove={handlePointerMove}
@@ -426,8 +430,8 @@ export default function GlobeView({ catchments, selectedId, onSelectCatchment, o
             />
           </div>
 
-          {/* Footer bar */}
-          <div style={{ borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', fontSize: '10.5px', color: 'var(--text-3)', padding: '7px 14px' }}>
+          {/* Footer bar — pinned to bottom */}
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(255,255,255,0.88)', backdropFilter: 'blur(4px)', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', fontSize: '10.5px', color: 'var(--text-3)', padding: '5px 14px', zIndex: 10 }}>
             <span>897 CAMELS-BR Gauges</span>
             <span style={{ fontFamily: 'var(--font-mono)' }}>Zoom: {Math.round(scale * 100)}%</span>
             <span>Drag · Scroll · Click</span>
